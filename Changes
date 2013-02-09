@@ -1,0 +1,6 @@
+Revision history for Perl extension IPC::Open3::Callback.
+
+0.01  Sat Feb  9 13:37:41 2013
+	- original version; created by h2xs 1.23 with options
+		-X -n IPC::Open3::Callback
+

@@ -1,0 +1,6 @@
+Changes
+Makefile.PL
+MANIFEST
+README
+t/IPC-Open3-Callback.t
+lib/IPC/Open3/Callback.pm
