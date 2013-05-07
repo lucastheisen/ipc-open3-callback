@@ -125,6 +125,7 @@ sub runCommand {
     return $exitCode;
 }
 
+# Outlined here: http://www.perlmonks.org/index.pl?node_id=811650
 sub safeOpen3 {
     my $command = shift;
     
