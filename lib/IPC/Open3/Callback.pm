@@ -23,6 +23,7 @@ use open OUT => ':utf8';
 
 use IO::Select;
 use IPC::Open3;
+use Socket qw( AF_UNIX SOCK_STREAM PF_UNSPEC );
 use Symbol;
 
 my $logger;
@@ -67,49 +68,6 @@ sub getLines {
     $self->{$buffer} = $flush ? "" : pop( @lines );
     
     return @lines;
-}
-
-sub sendInput {
-    my $self = shift;
-    $self->{inputBuffer} = shift;
-}
-
-sub writeErr {
-    my $self = shift;
-    my $data = shift;
-    my $flush = shift;
-
-    return if ( ! defined( $self->{errCallback} ) );
-
-    if ( !$self->{bufferOutput} ) {
-        $self->{errCallback}( $data );
-        return;
-    }
-
-    my @lines = $self->getLines( 'errBuffer', $data, $flush );
-
-    foreach my $line ( @lines ) {
-        $self->{errCallback}( $line );
-    }
-}
-
-sub writeOut {
-    my $self = shift;
-    my $data = shift;
-    my $flush = shift;
-
-    return if ( ! defined( $self->{outCallback} ) );
-
-    if ( !$self->{bufferOutput} ) {
-        $self->{outCallback}( $data );
-        return;
-    }
-
-    my @lines = $self->getLines( 'outBuffer', $data, $flush );
-
-    foreach my $line ( @lines ) {
-        $self->{outCallback}( $line );
-    }
 }
 
 sub runCommand {
@@ -165,6 +123,70 @@ sub runCommand {
 
     $logger->info( "exited '$command' with code $exitCode" );
     return $exitCode;
+}
+
+sub safeOpen3 {
+    my $command = shift;
+    
+    local (*IN_READ, *IN_WRITE, *OUT_READ, *OUT_WRITE, *ERR_READ, *ERR_WRITE);
+    winpipe( *IN_READ, *IN_WRITE );
+    winpipe( *OUT_READ, *OUT_WRITE );
+    winpipe( *ERR_READ, *ERR_WRITE );
+    
+    my $pid = open3( '>&IN_READ', '<&OUT_WRITE', '<&ERR_WRITE', $command );
+    
+    return ($pid, *IN_WRITE, *OUT_READ, *ERR_READ);
+}
+
+sub sendInput {
+    my $self = shift;
+    $self->{inputBuffer} = shift;
+}
+
+sub winpipe {
+    socketpair($_[0], $_[1], AF_UNIX, SOCK_STREAM, PF_UNSPEC)
+        || return undef;
+    shutdown($_[0], 1); # no more writing for reader
+    shutdown($_[1], 0); # no more reading for writer
+    return 1;
+}
+
+sub writeErr {
+    my $self = shift;
+    my $data = shift;
+    my $flush = shift;
+
+    return if ( ! defined( $self->{errCallback} ) );
+
+    if ( !$self->{bufferOutput} ) {
+        $self->{errCallback}( $data );
+        return;
+    }
+
+    my @lines = $self->getLines( 'errBuffer', $data, $flush );
+
+    foreach my $line ( @lines ) {
+        $self->{errCallback}( $line );
+    }
+}
+
+sub writeOut {
+    my $self = shift;
+    my $data = shift;
+    my $flush = shift;
+
+    return if ( ! defined( $self->{outCallback} ) );
+
+    if ( !$self->{bufferOutput} ) {
+        $self->{outCallback}( $data );
+        return;
+    }
+
+    my @lines = $self->getLines( 'outBuffer', $data, $flush );
+
+    foreach my $line ( @lines ) {
+        $self->{outCallback}( $line );
+    }
 }
 
 1;
