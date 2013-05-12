@@ -8,7 +8,8 @@
 use strict;
 use warnings;
 
-use Test::More tests => 1;
+use Test::More tests => 3;
+
 BEGIN { use_ok('IPC::Open3::Callback') };
 
 #########################
@@ -17,3 +18,16 @@ BEGIN { use_ok('IPC::Open3::Callback') };
 # its man page ( perldoc Test::More ) for help writing this test script.
 
 use IPC::Open3::Callback;
+my $echo = 'Hello World';
+my $buffer = '';
+my $errBuffer = '';
+my $runner = IPC::Open3::Callback->new(
+    outCallback => sub {
+        $buffer .= shift;
+    },
+    errCallback => sub {
+        $errBuffer .= shift;
+    } );
+$runner->runCommand( "echo $echo" );
+ok( $errBuffer eq '', "errbuffer" );
+ok( $buffer =~ /^$echo[\r\n]?[\r\n]?$/, "outbuffer" );

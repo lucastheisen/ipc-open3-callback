@@ -21,13 +21,14 @@ package IPC::Open3::Callback;
 
 use strict;
 use warnings;
-
-use open OUT => ':utf8';
+our ($VERSION);
 
 use IO::Select;
 use IO::Socket;
 use IPC::Open3;
 use Symbol qw(gensym);
+
+$VERSION = "1.00_01";
 
 my $logger;
 eval {
