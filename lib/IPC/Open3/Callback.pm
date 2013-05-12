@@ -4,8 +4,11 @@ package IPC::Open3::Callback::NullLogger;
 
 use AutoLoader;
 
+our $LOG_TO_STDOUT = 0;
+
 sub AUTOLOAD {
-    print( "DO NOTHING" );
+    shift;
+    print( "NullLogger: @_\n" ) if $LOG_TO_STDOUT;
 }
 
 sub new {
@@ -22,9 +25,9 @@ use warnings;
 use open OUT => ':utf8';
 
 use IO::Select;
+use IO::Socket;
 use IPC::Open3;
-use Socket qw( AF_UNIX SOCK_STREAM PF_UNSPEC );
-use Symbol;
+use Symbol qw(gensym);
 
 my $logger;
 eval {
@@ -57,6 +60,11 @@ sub new {
     return $self;
 }
 
+sub nixOpen3 {
+    my ($inFh, $outFh, $errFh) = (gensym(), gensym(), gensym());
+    return ( open3( $inFh, $outFh, $errFh, shift ), $inFh, $outFh, $errFh );
+}
+
 sub getLines {
     my $self = shift;
     my $buffer = shift;
@@ -74,15 +82,8 @@ sub runCommand {
     my $self = shift;
     my $command = shift;
 
-    my ($infh, $outfh, $errfh);
-    $errfh = gensym();
-
     $logger->info( "running '$command'" );
-    my $pid;
-    eval {
-        $pid = open3( $infh, $outfh, $errfh, $command );
-    };
-    die( "failed to run '$command': $@" ) if ( $@ );
+    my ($pid, $infh, $outfh, $errfh) = safeOpen3( $command );
 
     my $select = IO::Select->new();
     $select->add( $outfh, $errfh );
@@ -125,18 +126,8 @@ sub runCommand {
     return $exitCode;
 }
 
-# Outlined here: http://www.perlmonks.org/index.pl?node_id=811650
 sub safeOpen3 {
-    my $command = shift;
-    
-    local (*IN_READ, *IN_WRITE, *OUT_READ, *OUT_WRITE, *ERR_READ, *ERR_WRITE);
-    winpipe( *IN_READ, *IN_WRITE );
-    winpipe( *OUT_READ, *OUT_WRITE );
-    winpipe( *ERR_READ, *ERR_WRITE );
-    
-    my $pid = open3( '>&IN_READ', '<&OUT_WRITE', '<&ERR_WRITE', $command );
-    
-    return ($pid, *IN_WRITE, *OUT_READ, *ERR_READ);
+    return ( $^O =~ /MSWin32/ ) ? winOpen3( $_[0] ) : nixOpen3( $_[0] );
 }
 
 sub sendInput {
@@ -144,12 +135,24 @@ sub sendInput {
     $self->{inputBuffer} = shift;
 }
 
-sub winpipe {
-    socketpair($_[0], $_[1], AF_UNIX, SOCK_STREAM, PF_UNSPEC)
-        || return undef;
-    shutdown($_[0], 1); # no more writing for reader
-    shutdown($_[1], 0); # no more reading for writer
-    return 1;
+sub winOpen3 {
+    my $command = shift;
+    
+    my ($inRead, $inWrite) = winPipe();
+    my ($outRead, $outWrite) = winPipe();
+    my ($errRead, $errWrite) = winPipe();
+    
+    my $pid = open3( '>&'.fileno($inRead), 
+        '<&'.fileno($outWrite), 
+        '<&'.fileno($errWrite),
+         $command );
+    
+    return ( $pid, $inWrite, $outRead, $errRead );
+}
+
+sub winPipe {
+    my ($read, $write) = IO::Socket->socketpair( AF_UNIX, SOCK_STREAM, PF_UNSPEC );
+    return ($read, $write);
 }
 
 sub writeErr {
@@ -194,55 +197,62 @@ sub writeOut {
 __END__
 =head1 NAME
 
-NewModule - Perl module for hooting
+IPC::Open3::Callback - An extension to Open3 that will feed out and err to
+callbacks instead of requiring the caller to handle them.
 
 =head1 SYNOPSIS
 
-  use NewModule;
-  my $hootie = new NewModule;
-  $hootie->verbose(1);
-  $hootie->hoot;  # Hoots
-  $hootie->verbose(0);
-  $hootie->hoot;  # Doesn't hoot
+  use IPC::Open3::Callback;
+  my $runner = IPC::Open3::Callback->new( 
+      outCallback => sub {
+          print( "$_[0]\n" );
+      },
+      errCallback => sub {
+          print( STDERR "$_[0]\n" );
+      } );
+  $runner->runCommand( 'echo Hello World' );
   
 
 =head1 DESCRIPTION
 
-This module hoots when it's verbose, and doesn't do anything 
-when it's not verbose.  
+This module feeds output and error stream from a command to supplied callbacks.  
 
-=head2 Methods
+=head2 CONSTRUCTOR
 
 =over 4
 
-=item * $object->verbose(true or false)
+=item new( [ outCallback => SUB ], [ errCallback => SUB ] )
 
-=item * $object->verbose()
+The constructor creates a new object and attaches callbacks for STDOUT and
+STDERR streams from commands that will get run on this object.
+
+=back
+
+=head1 METHODS
+
+=over 4
+
+=item runCommand( [ COMMAND ] )
 
 Returns the value of the 'verbose' property.  When called with an
 argument, it also sets the value of the property.  Use a true or false
 Perl value, such as 1 or 0.
 
-=item * $object->hoot()
-
-Returns a hoot if we're supposed to be verbose.  Otherwise it returns
-nothing.
-
 =back
 
 =head1 AUTHOR
 
-Ken Williams (ken@mathforum.org)
+Lucas Theisen (lucastheisen@pastdev.com)
 
 =head1 COPYRIGHT
 
-Copyright 1998 Swarthmore College.  All rights reserved.
+Copyright 2013 pastdev.com.  All rights reserved.
 
 This library is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 
 =head1 SEE ALSO
 
-perl(1).
+IPC::Open3(1).
 
 =cut
