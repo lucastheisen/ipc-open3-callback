@@ -161,8 +161,8 @@ sub winOpen3 {
 
 sub winPipe {
     my ($read, $write) = IO::Socket->socketpair( AF_UNIX, SOCK_STREAM, PF_UNSPEC );
-    $read->shutdown( 1 );  # No more writing for reader
-    $write->shutdown( 0 );  # No more reading for writer
+    $read->shutdown( SHUT_WR );  # No more writing for reader
+    $write->shutdown( SHUT_RD );  # No more reading for writer
 
     return ($read, $write);
 }
