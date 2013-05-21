@@ -89,7 +89,7 @@ sub runCommand {
         $errBufferRef = \'';
     }
 
-    $logger->info( "running '$command'" );
+    $logger->debug( "running '$command'" );
     my ($pid, $infh, $outfh, $errfh) = safeOpen3( $command );
 
     my $select = IO::Select->new();
@@ -131,7 +131,7 @@ sub runCommand {
     waitpid( $pid, 0 );
     my $exitCode = $? >> 8;
 
-    $logger->info( "exited '$command' with code $exitCode" );
+    $logger->debug( "exited '$command' with code $exitCode" );
     return $exitCode;
 }
 
