@@ -4,3 +4,4 @@ Makefile
 MYMETA.yml
 pm_to_blib
 /.project
+/MYMETA.json
