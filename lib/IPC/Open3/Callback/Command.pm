@@ -113,7 +113,7 @@ sub wrap {
     }
     
     my $userAt = defined( $options->{username} ) ? 
-        (($ssh =~ /plink(?:\.exe)$/ ) ? "-l $options->{username} " : "$options->{username}\@") : 
+        (($ssh =~ /plink(?:\.exe)?$/ ) ? "-l $options->{username} " : "$options->{username}\@") : 
         '';
         
     $destination_command =~ s/\\/\\\\/g;
