@@ -3,8 +3,8 @@ Makefile.PL
 MANIFEST
 README
 t/Callback.t
-t/Callback/Command.t
-t/Callback/CommandRunner.t
+t/Calback_Command.t
+t/Callback_CommandRunner.t
 lib/IPC/Open3/Callback.pm
 lib/IPC/Open3/Callback/Command.pm
 lib/IPC/Open3/Callback/CommandRunner.pm
