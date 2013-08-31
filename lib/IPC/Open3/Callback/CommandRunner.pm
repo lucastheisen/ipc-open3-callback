@@ -29,7 +29,7 @@ sub build_callback {
     elsif ( $options->{$out_or_err . '_buffer'} ) {
         $self->{$out_or_err . '_buffer'} = ();
         return sub {
-            push( @{$self->{$out_or_err . '_buffer'}}, @_ );
+            push( @{$self->{$out_or_err . '_buffer'}}, shift );
         };
     }
     return undef;
@@ -61,26 +61,36 @@ sub out_buffer {
 
 sub run {
     my $self = shift;
-    my $command = shift;
-    my %options = $self->options( @_ );
-
+    my @command = @_;
+    my %options = ();
+    
+    # if last arg is hashref, its command options not arg...
+    if ( ref( $command[-1] ) eq 'HASH' ) {
+        %options = $self->options( %{pop(@command)} );
+    }
+    
     $self->clear_buffers();
 
-    return $self->{command_runner}->run_command( $command, %options );
+    return $self->{command_runner}->run_command( @command, \%options );
 }
 
 sub run_or_die {
     my $self = shift;
-    my $command = shift;
-    my %options = $self->options( @_ );
+    my @command = @_;
+    my %options = ();
+    
+    # if last arg is hashref, its command options not arg...
+    if ( ref( $command[-1] ) eq 'HASH' ) {
+        %options = $self->options( %{pop(@command)} );
+    }
 
     $self->clear_buffers();
 
-    my $exit_code = $self->{command_runner}->run_command( $command, %options );
+    my $exit_code = $self->{command_runner}->run_command( @command, \%options );
     if ( $exit_code ) {
-        my $message = "FAILED ($exit_code): $command";
-        $message .= " outBuffer=($self->{out_buffer})" if ( $options{out_buffer} );
-        $message .= " errBuffer=($self->{err_buffer})" if ( $options{err_buffer} );
+        my $message = "FAILED ($exit_code): @command";
+        $message .= " out_buffer=($self->{out_buffer})" if ( $options{out_buffer} );
+        $message .= " err_buffer=($self->{err_buffer})" if ( $options{err_buffer} );
         die( $message );
     }
 }
