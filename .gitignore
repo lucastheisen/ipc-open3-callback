@@ -1,4 +1,5 @@
 *~
+.*.swp
 blib/
 Makefile
 MYMETA.yml
@@ -6,3 +7,4 @@ pm_to_blib
 /.project
 /MYMETA.json
 /IPC-Open3-Callback*.tar.gz
+/IPC-Open3-Callback*
