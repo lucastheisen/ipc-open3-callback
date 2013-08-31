@@ -2,5 +2,7 @@ Changes
 Makefile.PL
 MANIFEST
 README
-t/IPC-Open3-Callback.t
+t/Callback.t
 lib/IPC/Open3/Callback.pm
+lib/IPC/Open3/Callback/Command.pm
+lib/IPC/Open3/Callback/CommandRunner.pm

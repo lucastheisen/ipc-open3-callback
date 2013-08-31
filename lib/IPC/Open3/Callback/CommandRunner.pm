@@ -13,50 +13,50 @@ sub new {
     my $self = {};
     bless( $self, $class );
 
-    $self->{commandRunner} = IPC::Open3::Callback->new();
+    $self->{command_runner} = IPC::Open3::Callback->new();
 
     return $self
 }
 
-sub buildCallback {
+sub build_callback {
     my $self = shift;
-    my $outOrErr = shift;
+    my $out_or_err = shift;
     my $options = shift;
 
-    if ( defined( $options->{$outOrErr . 'Callback'} ) ) {
-        return $options->{$outOrErr . 'Callback'};
+    if ( defined( $options->{$out_or_err . '_callback'} ) ) {
+        return $options->{$out_or_err . '_callback'};
     }
-    elsif ( $options->{$outOrErr . 'Buffer'} ) {
-        $self->{$outOrErr . 'Buffer'} = ();
+    elsif ( $options->{$out_or_err . '_buffer'} ) {
+        $self->{$out_or_err . '_buffer'} = ();
         return sub {
-            push( @{$self->{$outOrErr . 'Buffer'}}, @_ );
+            push( @{$self->{$out_or_err . '_buffer'}}, @_ );
         };
     }
     return undef;
 }
 
-sub clearBuffers {
+sub clear_buffers {
     my $self = shift;
-    delete( $self->{outBuffer} );
-    delete( $self->{errBuffer} );
+    delete( $self->{out_buffer} );
+    delete( $self->{err_buffer} );
 }
 
-sub errBuffer {
-    return join( '', @{shift->{errBuffer}} );
+sub err_buffer {
+    return join( '', @{shift->{err_buffer}} );
 }
 
 sub options {
     my $self = shift;
     my %options = @_;
 
-    $options{outCallback} = $self->buildCallback( 'out', \%options );
-    $options{errCallback} = $self->buildCallback( 'err', \%options );
+    $options{out_callback} = $self->build_callback( 'out', \%options );
+    $options{err_callback} = $self->build_callback( 'err', \%options );
 
     return %options;
 }
 
-sub outBuffer {
-    return join( '', @{shift->{outBuffer}} );
+sub out_buffer {
+    return join( '', @{shift->{out_buffer}} );
 }
 
 sub run {
@@ -64,23 +64,23 @@ sub run {
     my $command = shift;
     my %options = $self->options( @_ );
 
-    $self->clearBuffers();
+    $self->clear_buffers();
 
-    return $self->{commandRunner}->runCommand( $command, %options );
+    return $self->{command_runner}->run_command( $command, %options );
 }
 
-sub runOrDie {
+sub run_or_die {
     my $self = shift;
     my $command = shift;
     my %options = $self->options( @_ );
 
-    $self->clearBuffers();
+    $self->clear_buffers();
 
-    my $exitCode = $self->{commandRunner}->runCommand( $command, %options );
-    if ( $exitCode ) {
-        my $message = "FAILED ($exitCode): $command";
-        $message .= " outBuffer=($self->{outBuffer})" if ( $options{outBuffer} );
-        $message .= " errBuffer=($self->{errBuffer})" if ( $options{errBuffer} );
+    my $exit_code = $self->{command_runner}->run_command( $command, %options );
+    if ( $exit_code ) {
+        my $message = "FAILED ($exit_code): $command";
+        $message .= " outBuffer=($self->{out_buffer})" if ( $options{out_buffer} );
+        $message .= " errBuffer=($self->{err_buffer})" if ( $options{err_buffer} );
         die( $message );
     }
 }

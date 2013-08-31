@@ -8,7 +8,7 @@ our $LOG_TO_STDOUT = 0;
 
 sub AUTOLOAD {
     shift;
-    print( "NullLogger: @_\n" ) if $LOG_TO_STDOUT;
+    print( "IPC::Open3::Callback::NullLogger: @_\n" ) if $LOG_TO_STDOUT;
 }
 
 sub new {
@@ -22,6 +22,9 @@ package IPC::Open3::Callback;
 use strict;
 use warnings;
 our ($VERSION);
+
+use Exporter qw(import);
+our @EXPORT_OK = qw(safe_open3);
 
 use Data::Dumper;
 use IO::Select;
@@ -48,75 +51,83 @@ sub new {
 
     my %args = @_;
 
-    $self->{outCallback} = $args{outCallback};
-    $self->{errCallback} = $args{errCallback};
-    $self->{bufferOutput} = $args{bufferOutput};
-    $self->{selectTimeout} = $args{selectTimeout};
+    $self->{out_callback} = $args{out_callback};
+    $self->{err_callback} = $args{err_callback};
+    $self->{buffer_output} = $args{buffer_output};
+    $self->{select_timeout} = $args{select_timeout};
 
     return $self;
 }
 
-sub appendToBuffer {
+sub append_to_buffer {
     my $self = shift;
-    my $bufferRef = shift;
-    my $data = $$bufferRef . shift;
+    my $buffer_ref = shift;
+    my $data = $$buffer_ref . shift;
     my $flush = shift;
 
     my @lines = split( /\n/, $data, -1 );
 
     # save the last line in the buffer as it may not yet be a complete line
-    $$bufferRef = $flush ? '' : pop( @lines );
+    $$buffer_ref = $flush ? '' : pop( @lines );
     
     # return all complete lines
     return @lines;
 }
 
-sub nixOpen3 {
-    my ($inFh, $outFh, $errFh) = (gensym(), gensym(), gensym());
-    return ( open3( $inFh, $outFh, $errFh, shift ), $inFh, $outFh, $errFh );
+sub nix_open3 {
+    my @command = @_;
+
+    my ($in_fh, $out_fh, $err_fh) = (gensym(), gensym(), gensym());
+    return ( open3( $in_fh, $out_fh, $err_fh, @command ),
+        $in_fh, $out_fh, $err_fh );
 }
 
-sub runCommand {
+sub run_command {
     my $self = shift;
-    my $command = shift;
-    my %options = @_;
+    my @command = @_;
+    my $options = {};
     
-    my ($outCallback, $outBufferRef, $errCallback, $errBufferRef);
-    $outCallback = $options{outCallback} || $self->{outCallback};
-    $errCallback = $options{errCallback} || $self->{errCallback};
-    if ( $options{bufferOutput} || $self->{bufferOutput} ) {
-        $outBufferRef = \'';
-        $errBufferRef = \'';
+    # if last arg is hashref, its command options not arg...
+    if ( ref( $command[-1] ) eq 'HASH' ) {
+        $options = pop(@command);
+    }
+    
+    my ($out_callback, $out_buffer_ref, $err_callback, $err_buffer_ref);
+    $out_callback = $options->{out_callback} || $self->{out_callback};
+    $err_callback = $options->{err_callback} || $self->{err_callback};
+    if ( $options->{buffer_output} || $self->{buffer_output} ) {
+        $out_buffer_ref = \'';
+        $err_buffer_ref = \'';
     }
 
-    $logger->debug( "running '$command'" );
-    my ($pid, $infh, $outfh, $errfh) = safeOpen3( $command );
+    $logger->debug( sub { "running '" . join( ' ', @command ) . "'" } );
+    my ($pid, $in_fh, $out_fh, $err_fh) = safe_open3( @command );
 
     my $select = IO::Select->new();
-    $select->add( $outfh, $errfh );
+    $select->add( $out_fh, $err_fh );
 
-    while ( my @ready = $select->can_read( $self->{selectTimeout} ) ) {
-        if ( $self->{inputBuffer} ) {
-            syswrite( $infh, $self->{inputBuffer} );
-            delete( $self->{inputBuffer} );
+    while ( my @ready = $select->can_read( $self->{select_timeout} ) ) {
+        if ( $self->{input_buffer} ) {
+            syswrite( $in_fh, $self->{input_buffer} );
+            delete( $self->{input_buffer} );
         }
         foreach my $fh ( @ready ) {
             my $line;
-            my $bytesRead = sysread( $fh, $line, 1024 );
-            if ( ! defined( $bytesRead ) && !$!{ECONNRESET} ) {
+            my $bytes_read = sysread( $fh, $line, 1024 );
+            if ( ! defined( $bytes_read ) && !$!{ECONNRESET} ) {
                 $logger->error( "sysread failed: ", sub { Dumper( %! ) } );
-                die( "error in running '$command': $!" );
+                die( "error in running '" . join( ' ' . @command ) . "': $!" );
             }
-            elsif ( ! defined( $bytesRead) || $bytesRead == 0 ) {
+            elsif ( ! defined( $bytes_read) || $bytes_read == 0 ) {
                 $select->remove( $fh );
                 next;
             }
             else {
-                if ( $fh == $outfh ) {
-                    $self->writeToCallback( $outCallback, $line, $outBufferRef );
+                if ( $fh == $out_fh ) {
+                    $self->write_to_callback( $out_callback, $line, $out_buffer_ref, 0, $pid );
                 }
-                elsif ( $fh == $errfh ) {
-                    $self->writeToCallback( $errCallback, $line, $errBufferRef );
+                elsif ( $fh == $err_fh ) {
+                    $self->write_to_callback( $err_callback, $line, $err_buffer_ref, 0, $pid );
                 }
                 else {
                     die( "impossible... somehow got a filehandle i dont know about!" );
@@ -125,41 +136,41 @@ sub runCommand {
         }
     }
     # flush buffers
-    $self->writeToCallback( $outCallback, '', $outBufferRef, 1 );
-    $self->writeToCallback( $errCallback, '', $errBufferRef, 1 );
+    $self->write_to_callback( $out_callback, '', $out_buffer_ref, 1, $pid );
+    $self->write_to_callback( $err_callback, '', $err_buffer_ref, 1, $pid );
 
     waitpid( $pid, 0 );
-    my $exitCode = $? >> 8;
+    my $exit_code = $? >> 8;
 
-    $logger->debug( "exited '$command' with code $exitCode" );
-    return $exitCode;
+    $logger->debug( "exited '" . join( ' ', @command ) . "' with code $exit_code" );
+    return $exit_code;
 }
 
-sub safeOpen3 {
-    return ( $^O =~ /MSWin32/ ) ? winOpen3( $_[0] ) : nixOpen3( $_[0] );
+sub safe_open3 {
+    return ( $^O =~ /MSWin32/ ) ? win_open3( @_ ) : nix_open3( @_ );
 }
 
-sub sendInput {
+sub send_input {
     my $self = shift;
-    $self->{inputBuffer} = shift;
+    $self->{input_buffer} = shift;
 }
 
-sub winOpen3 {
-    my $command = shift;
+sub win_open3 {
+    my @command = @_;
+
+    my ($in_read, $in_write) = win_pipe();
+    my ($out_read, $out_write) = win_pipe();
+    my ($err_read, $err_write) = win_pipe();
     
-    my ($inRead, $inWrite) = winPipe();
-    my ($outRead, $outWrite) = winPipe();
-    my ($errRead, $errWrite) = winPipe();
+    my $pid = open3( '>&'.fileno($in_read), 
+        '<&'.fileno($out_write), 
+        '<&'.fileno($err_write),
+         @command );
     
-    my $pid = open3( '>&'.fileno($inRead), 
-        '<&'.fileno($outWrite), 
-        '<&'.fileno($errWrite),
-         $command );
-    
-    return ( $pid, $inWrite, $outRead, $errRead );
+    return ( $pid, $in_write, $out_read, $err_read );
 }
 
-sub winPipe {
+sub win_pipe {
     my ($read, $write) = IO::Socket->socketpair( AF_UNIX, SOCK_STREAM, PF_UNSPEC );
     $read->shutdown( SHUT_WR );  # No more writing for reader
     $write->shutdown( SHUT_RD );  # No more reading for writer
@@ -167,21 +178,22 @@ sub winPipe {
     return ($read, $write);
 }
 
-sub writeToCallback {
+sub write_to_callback {
     my $self = shift;
     my $callback = shift;
     my $data = shift;
-    my $bufferRef = shift;
+    my $buffer_ref = shift;
     my $flush = shift;
+    my $pid = shift;
     
     return if ( ! defined( $callback ) );
     
-    if ( ! defined( $bufferRef ) ) {
-        &{$callback}( $data );
+    if ( ! defined( $buffer_ref ) ) {
+        &{$callback}( $data, $pid );
         return;
     }
     
-    &{$callback}( $_ ) foreach ( $self->appendToBuffer( $bufferRef, $data, $flush ) ) ;
+    &{$callback}( $_ ) foreach ( $self->append_to_buffer( $buffer_ref, $data, $flush ) ) ;
 }
 
 1;
@@ -195,13 +207,13 @@ callbacks instead of requiring the caller to handle them.
 
   use IPC::Open3::Callback;
   my $runner = IPC::Open3::Callback->new( 
-      outCallback => sub {
+      out_callback => sub {
           print( "$_[0]\n" );
       },
-      errCallback => sub {
+      err_callback => sub {
           print( STDERR "$_[0]\n" );
       } );
-  $runner->runCommand( 'echo Hello World' );
+  $runner->run_command( 'echo Hello World' );
   
 
 =head1 DESCRIPTION
@@ -212,7 +224,7 @@ This module feeds output and error stream from a command to supplied callbacks.
 
 =over 4
 
-=item new( [ outCallback => SUB ], [ errCallback => SUB ] )
+=item new( [ out_callback => SUB ], [ err_callback => SUB ] )
 
 The constructor creates a new object and attaches callbacks for STDOUT and
 STDERR streams from commands that will get run on this object.
@@ -223,7 +235,7 @@ STDERR streams from commands that will get run on this object.
 
 =over 4
 
-=item runCommand( [ COMMAND ] )
+=item run_command( [ COMMAND ] )
 
 Returns the value of the 'verbose' property.  When called with an
 argument, it also sets the value of the property.  Use a true or false
