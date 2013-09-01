@@ -9,3 +9,4 @@ pm_to_blib
 /IPC-Open3-Callback*.tar.gz
 /IPC-Open3-Callback*
 /.build
+/*.html
