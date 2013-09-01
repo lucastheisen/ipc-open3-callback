@@ -197,50 +197,155 @@ sub write_to_callback {
 __END__
 =head1 NAME
 
-IPC::Open3::Callback - An extension to Open3 that will feed out and err to
-callbacks instead of requiring the caller to handle them.
+IPC::Open3::Callback - An extension to IPC::Open3 that will feed out and err to callbacks instead of requiring the caller to handle them.
 
 =head1 SYNOPSIS
 
   use IPC::Open3::Callback;
   my $runner = IPC::Open3::Callback->new( 
       out_callback => sub {
-          print( "$_[0]\n" );
+          my $data = shift;
+          my $pid = shift;
+
+          print( "$pid STDOUT: $data\n" );
       },
       err_callback => sub {
-          print( STDERR "$_[0]\n" );
-      } );
-  $runner->run_command( 'echo Hello World' );
-  
+          my $data = shift;
+          my $pid = shift;
 
+          print( "$pid STDERR: $data\n" );
+      } );
+  my $exit_code = $runner->run_command( 'echo Hello World' );
+
+  use IPC::Open3::Callback qw(safe_open3);
+  my ($pid, $in, $out, $err) = safe_open3( "echo", "Hello", "world" ); 
+  $buffer = '';
+  my $select = IO::Select->new();
+  $select->add( $out );
+  while ( my @ready = $select->can_read( 5 ) ) {
+      foreach my $fh ( @ready ) {
+          my $line;
+          my $bytes_read = sysread( $fh, $line, 1024 );
+          if ( ! defined( $bytes_read ) && !$!{ECONNRESET} ) {
+              die( "error in running ('echo $echo'): $!" );
+          }
+          elsif ( ! defined( $bytes_read) || $bytes_read == 0 ) {
+              $select->remove( $fh );
+              next;
+          }
+          else {
+              if ( $fh == $out ) {
+                  $buffer .= $line;
+              }
+              else {
+                  die( "impossible... somehow got a filehandle i dont know about!" );
+              }
+          }
+      }
+  } 
+  waitpid( $pid, 0 );
+  my $exit_code = $? >> 8;
+  print( "$pid exited with $exit_code: $buffer\n" ); # 123 exited with 0: Hello World
+  
 =head1 DESCRIPTION
 
 This module feeds output and error stream from a command to supplied callbacks.  
-Thus, this class removes the necessity of dealing with IO::Select by hand and
+Thus, this class removes the necessity of dealing with L<IO::Select> by hand and
 also provides a workaround for Windows systems.
 
-=head2 CONSTRUCTOR
+=head1 FUNCTIONS
+
+=head2 safe_open3( $command, $arg1, ..., $argN )
+
+Passes the command and arguments on to C<open3> and returns a list containing:
 
 =over 4
 
-=item new( [ out_callback => SUB ], [ err_callback => SUB ] )
+=item pid
 
-The constructor creates a new object and attaches callbacks for STDOUT and
-STDERR streams from commands that will get run on this object.
+The process id of the forked process
+
+=item stdin
+
+An L<IO::Handle> to STDIN for the process
+
+=item stdout
+
+An L<IO::Handle> to STDOUT for the process
+
+=item stderr
+
+An L<IO::Handle> to STDERR for the process
+
+=back
+
+As with C<open3>, it is the callers responsibility to waitpid to
+ensure forked processes do not become zombies.
+
+This method works for both *nix and Windows sytems.  On a windows system,
+it will use sockets per L<http://www.perlmonks.org/index.pl?node_id=811150>.
+
+=head1 CONSTRUCTOR
+
+=head2 new( \%options )
+
+The constructor creates a new Callback object and optionally sets global 
+callbacks for C<STDOUT> and C<STDERR> streams from commands that will get run by 
+this object (can be overridden per call to 
+L<run_command|/"run_command( $command, $arg1, ..., $argN, \%options )">).
+
+=over 4
+
+=item out_callback
+
+A subroutine to call for each chunk of text written to C<STDOUT>. This subroutine
+will be called with 2 arguments:
+
+=over 4
+
+=item data
+
+A chunk of text written to the stream
+
+=item pid
+
+The pid of the forked process
+
+=back
+
+=item err_callback
+
+A subroutine to call for each chunk of text written to C<STDERR>. This subroutine
+will be called with the same 2 arguments as C<out_callback>
+
+=item buffer_output
+
+A boolean value, if true, will buffer output and send to callback one line
+at a time (waits for '\n').  Otherwise, sends text in the same chunks returned
+by L<sysread>.
+
+=item select_timeout
+
+The timeout, in seconds, provided to C<IO::Select>, by default 0 meaning no
+timeout which will cause the loop to block until output is ready on either
+C<STDOUT> or C<STDERR>.
 
 =back
 
 =head1 METHODS
 
-=over 4
+=head2 run_command( $command, $arg1, ..., $argN, \%options )
 
-=item run_command( [ COMMAND_LIST ] )
+Will run the specified command with the supplied arguments by passing them on 
+to L<safe_open3|/"safe_open3( $command, $arg1, ..., $argN )">.  Arguments can be embedded in the command string and 
+are thus optional.
 
-Returns the value of the 'verbose' property.  When called with an
-argument, it also sets the value of the property.  Use a true or false
-Perl value, such as 1 or 0.
+If the last argument to this method is a hashref (C<ref(@_[-1]) eq 'HASH'>), then
+it is treated as an options hash.  The supported allowed options are the same
+as the constructor and will be used in preference to the values set in the 
+constructor for this call.
 
-=back
+Returns the exit code from the command.
 
 =head1 AUTHOR
 
@@ -255,6 +360,10 @@ modify it under the same terms as Perl itself.
 
 =head1 SEE ALSO
 
-IPC::Open3(1).
+L<IPC::Open3>
+L<IPC::Open3::Callback::Command>
+L<IPC::Open3::Callback::CommandRunner>
+L<https://github.com/lucastheisen/ipc-open3-callback>
+L<http://stackoverflow.com/q/16675950/516433>
 
 =cut
