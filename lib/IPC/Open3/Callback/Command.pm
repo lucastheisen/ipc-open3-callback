@@ -122,3 +122,63 @@ sub wrap {
 }
 
 1;
+__END__
+=head1 NAME
+
+IPC::Open3::Callback::Command - A utility class that provides subroutines for
+building shell command strings.
+
+=head1 SYNOPSIS
+
+  use IPC::Open3::Callback::Command qw(command batch_command mkdir_command pipe_command rm_command sed_command);
+  my $command = command( 'echo' ); # echo
+
+  # ssh foo "echo"
+  $command = command( 'echo', {hostname=>'foo'} ); 
+
+  # ssh bar@foo "echo"
+  $command = command( 'echo', {username=>'bar',hostname=>'foo'} ); 
+  
+  # plink -l bar foo "echo"
+  $command = command( 'echo', {username=>'bar',hostname=>'foo',ssh=>'plink'} ); 
+  
+  # cd foo;cd bar
+  $command = batch_command( 'cd foo', 'cd bar' ); 
+  
+  # ssh baz "cd foo;cd bar"
+  $command = batch_command( 'cd foo', 'cd bar', {hostname=>'baz'} ); 
+  
+  # ssh baz "sudo cd foo;sudo cd bar"
+  $command = batch_command( 'cd foo', 'cd bar', {hostname=>'baz',command_prefix=>'sudo '} ); 
+  
+  # ssh baz "mkdir -p \"foo\" \"bar\""
+  $command = mkdir_command( 'foo', 'bar', {hostname=>'baz'} ); 
+
+  # cat abc|ssh baz "dd of=def"
+  $command = pipe_command( 
+          'cat abc', 
+          command( 'dd of=def', {hostname=>'baz'} ) 
+      ); 
+
+  # ssh fred@baz "sudo -u joe rm -rf \"foo\" \"bar\""
+  $command = rm_command( 'foo', 'bar', {username=>'fred',hostname=>'baz',command_prefix=>'sudo -u joe '} ); 
+  
+  # sed -e 's/foo/bar/'
+  $command = sed_command( 's/foo/bar/' ); 
+  
+  
+  # curl http://www.google.com|sed -e 's/google/gaggle/g'|ssh fred@baz "sudo -u joe dd of=\"/tmp/gaggle.com\"";ssh fred@baz "sudo -u joe rm -rf \"/tmp/google.com\"";
+  $command = batch_command(
+          pipe_command( 
+              'curl http://www.google.com',
+              sed_command( {replace_map=>{google=>'gaggle'}} ),
+              command( 'dd of="/tmp/gaggle.com"', {username=>'fred',hostname=>'baz',command_prefix=>'sudo -u joe '} )
+          ),
+          rm_command( '/tmp/google.com', {username=>'fred',hostname=>'baz',command_prefix=>'sudo -u joe '}) 
+      );
+
+=head1 DESCRIPTION
+
+The subroutines exported by this module can build shell command strings that
+can be executed by IPC::Open3::Callback, IPC::Open3::Callback::CommandRunner,
+``, system(), or even plain old open 1, 2, or 3.

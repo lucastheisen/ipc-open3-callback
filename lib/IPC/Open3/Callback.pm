@@ -21,7 +21,6 @@ package IPC::Open3::Callback;
 
 use strict;
 use warnings;
-our ($VERSION);
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(safe_open3);
@@ -31,8 +30,6 @@ use IO::Select;
 use IO::Socket;
 use IPC::Open3;
 use Symbol qw(gensym);
-
-$VERSION = "1.00_01";
 
 my $logger;
 eval {
@@ -219,6 +216,8 @@ callbacks instead of requiring the caller to handle them.
 =head1 DESCRIPTION
 
 This module feeds output and error stream from a command to supplied callbacks.  
+Thus, this class removes the necessity of dealing with IO::Select by hand and
+also provides a workaround for Windows systems.
 
 =head2 CONSTRUCTOR
 
@@ -235,7 +234,7 @@ STDERR streams from commands that will get run on this object.
 
 =over 4
 
-=item run_command( [ COMMAND ] )
+=item run_command( [ COMMAND_LIST ] )
 
 Returns the value of the 'verbose' property.  When called with an
 argument, it also sets the value of the property.  Use a true or false

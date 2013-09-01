@@ -96,3 +96,28 @@ sub run_or_die {
 }
 
 1;
+__END__
+=head1 NAME
+
+IPC::Open3::Callback::CommandRunner - A utility class that wraps 
+IPC::Open3::Callback with available output buffers and an option to die on
+failure instead of returning exit code.
+
+=head1 SYNOPSIS
+
+  use IPC::Open3::Callback::CommandRunner;
+
+  my $command_runner = IPC::Open3::Callback::CommandRunner->new();
+  my $exit_code = $command_runner->run( 'echo Hello, World!' );
+
+  eval {
+      $command_runner->run_or_die( $command_that_might_die );
+  };
+  if ( $@ ) {
+      print( "command died: $@\n" );
+  }
+
+=head1 DESCRIPTION
+
+Adds more convenience to IPC::Open3::Callback by buffering output and error
+if needed and dieing on failure if wanted.

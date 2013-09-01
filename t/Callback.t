@@ -29,20 +29,20 @@ my $runner = IPC::Open3::Callback->new(
     err_callback => sub {
         $err_buffer .= shift;
     } );
-$runner->run_command( "echo", $echo );
+$runner->run_command( "echo $echo" );
 is( $err_buffer, '', "errbuffer" );
 like( $buffer, $echo_result_regex, "outbuffer" );
 
 $buffer = '';
 $runner = IPC::Open3::Callback->new();
-$runner->run_command( "echo", $echo, {
+$runner->run_command( "echo", "Hello", "World", {
     out_callback => sub {
         $buffer .= shift;
     }
 } );
 like( $buffer, $echo_result_regex, "out_callback as command option" );
 
-my ($pid, $in, $out, $err) = safe_open3( "echo", "$echo" ); 
+my ($pid, $in, $out, $err) = safe_open3( "echo $echo" ); 
 $buffer = '';
 my $select = IO::Select->new();
 $select->add( $out );
@@ -51,7 +51,7 @@ while ( my @ready = $select->can_read( 5 ) ) {
         my $line;
         my $bytes_read = sysread( $fh, $line, 1024 );
         if ( ! defined( $bytes_read ) && !$!{ECONNRESET} ) {
-            die( "error in running ('echo', '$echo'): $!" );
+            die( "error in running ('echo $echo'): $!" );
         }
         elsif ( ! defined( $bytes_read) || $bytes_read == 0 ) {
             $select->remove( $fh );
