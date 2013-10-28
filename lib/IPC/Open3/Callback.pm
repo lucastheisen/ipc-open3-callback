@@ -1,6 +1,9 @@
 #!/usr/bin/perl
 
 package IPC::Open3::Callback::NullLogger;
+{
+  $IPC::Open3::Callback::NullLogger::VERSION = '1.01';
+}
 
 use AutoLoader;
 
@@ -19,6 +22,8 @@ no AutoLoader;
 
 package IPC::Open3::Callback;
 
+our $VERSION = 1.01;
+
 use strict;
 use warnings;
 
@@ -30,6 +35,7 @@ use IO::Select;
 use IO::Socket;
 use IPC::Open3;
 use Symbol qw(gensym);
+use Hash::Util qw(lock_keys);
 
 my $logger;
 eval {
@@ -43,15 +49,29 @@ if ( $@ ) {
 sub new {
     my $prototype = shift;
     my $class = ref( $prototype ) || $prototype;
-    my $self = {};
+
+	my $self = { out_callback => undef, err_callback => undef, buffer_output => undef, select_timeout => undef, buffer_size => undef, pid => undef, last_cmd => undef, input_buffer => undef };
     bless( $self, $class );
 
-    my %args = @_;
+    my $args_ref = shift;
 
-    $self->{out_callback} = $args{out_callback};
-    $self->{err_callback} = $args{err_callback};
-    $self->{buffer_output} = $args{buffer_output};
-    $self->{select_timeout} = $args{select_timeout};
+	if (defined($args_ref)) {
+
+		$logger->logdie('parameters must be an hash reference') unless((ref($args_ref)) eq 'HASH');
+		$self->{out_callback} = $args_ref->{out_callback};
+		$self->{err_callback} = $args_ref->{err_callback};
+		$self->{buffer_output} = $args_ref->{buffer_output};
+		$self->{select_timeout} = $args_ref->{select_timeout} || 3;
+		$self->{buffer_size} = $args_ref->{buffer_size} || 1024;
+
+	} else {
+
+		$self->{select_timeout} = 3;
+		$self->{buffer_size} = 1024;
+
+	}
+
+	lock_keys(%{$self});
 
     return $self;
 }
@@ -80,6 +100,7 @@ sub nix_open3 {
 }
 
 sub run_command {
+
     my $self = shift;
     my @command = @_;
     my $options = {};
@@ -97,8 +118,10 @@ sub run_command {
         $err_buffer_ref = \'';
     }
 
-    $logger->debug( sub { "running '" . join( ' ', @command ) . "'" } );
+	$self->{last_cmd} = join(' ', @command);
+    $logger->debug( 'Running "' . $self->{last_cmd} . "'" ) if ($logger->is_debug());
     my ($pid, $in_fh, $out_fh, $err_fh) = safe_open3( @command );
+	$self->{pid} = $pid;
 
     my $select = IO::Select->new();
     $select->add( $out_fh, $err_fh );
@@ -110,10 +133,10 @@ sub run_command {
         }
         foreach my $fh ( @ready ) {
             my $line;
-            my $bytes_read = sysread( $fh, $line, 1024 );
+            my $bytes_read = sysread( $fh, $line, $self->{buffer_size} );
             if ( ! defined( $bytes_read ) && !$!{ECONNRESET} ) {
-                $logger->error( "sysread failed: ", sub { Dumper( %! ) } );
-                die( "error in running '" . join( ' ' . @command ) . "': $!" );
+                $logger->error( "sysread failed: ", sub { Dumper( %! ) } ) if ($logger->is_error());
+                $logger->logdie( "error in running '" . $self->{last_cmd} . "': $!" );
             }
             elsif ( ! defined( $bytes_read) || $bytes_read == 0 ) {
                 $select->remove( $fh );
@@ -127,20 +150,37 @@ sub run_command {
                     $self->write_to_callback( $err_callback, $line, $err_buffer_ref, 0, $pid );
                 }
                 else {
-                    die( "impossible... somehow got a filehandle i dont know about!" );
+                    $logger->logdie( 'Impossible... somehow got a filehandle I dont know about!' );
                 }
             }
         }
     }
+
     # flush buffers
     $self->write_to_callback( $out_callback, '', $out_buffer_ref, 1, $pid );
     $self->write_to_callback( $err_callback, '', $err_buffer_ref, 1, $pid );
+	return $self->destroy_child();
 
-    waitpid( $pid, 0 );
+}
+
+sub DESTROY {
+
+	my $self = shift;
+	$self->destroy_child();
+
+}
+
+sub destroy_child {
+
+	my $self = shift;
+
+    waitpid( $self->{pid}, 0 ) if ($self->{pid});
     my $exit_code = $? >> 8;
 
-    $logger->debug( "exited '" . join( ' ', @command ) . "' with code $exit_code" );
+    $logger->debug( "exited '" . $self->{last_cmd} . "' with code $exit_code" ) if ($logger->is_debug());
+	$self->{pid} = undef;
     return $exit_code;
+
 }
 
 sub safe_open3 {
@@ -199,6 +239,10 @@ __END__
 
 IPC::Open3::Callback - An extension to IPC::Open3 that will feed out and err to callbacks instead of requiring the caller to handle them.
 
+=head1 VERSION
+
+version 1.01
+
 =head1 SYNOPSIS
 
   use IPC::Open3::Callback;
@@ -246,7 +290,7 @@ IPC::Open3::Callback - An extension to IPC::Open3 that will feed out and err to 
   waitpid( $pid, 0 );
   my $exit_code = $? >> 8;
   print( "$pid exited with $exit_code: $buffer\n" ); # 123 exited with 0: Hello World
-  
+
 =head1 DESCRIPTION
 
 This module feeds output and error stream from a command to supplied callbacks.  
@@ -347,9 +391,19 @@ constructor for this call.
 
 Returns the exit code from the command.
 
-=head1 AUTHOR
+=head1 AUTHORS
 
-Lucas Theisen (lucastheisen@pastdev.com)
+=over
+
+=item *
+
+Lucas Theisen E<lt>lucastheisen@pastdev.comE<gt>
+
+=item *
+
+Alceu Rodrigues de Freitas Junior E<lt>arfreitas@cpan.orgE<gt>
+
+=back
 
 =head1 COPYRIGHT
 
@@ -360,10 +414,28 @@ modify it under the same terms as Perl itself.
 
 =head1 SEE ALSO
 
+=over
+
+=item *
+
 L<IPC::Open3>
+
+=item *
+
 L<IPC::Open3::Callback::Command>
+
+=item *
+
 L<IPC::Open3::Callback::CommandRunner>
+
+=item *
+
 L<https://github.com/lucastheisen/ipc-open3-callback>
+
+=item *
+
 L<http://stackoverflow.com/q/16675950/516433>
+
+=back
 
 =cut
