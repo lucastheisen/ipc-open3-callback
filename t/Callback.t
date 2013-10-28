@@ -8,7 +8,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 6;
+use Test::More tests => 7;
 
 BEGIN { use_ok('IPC::Open3::Callback') };
 
@@ -22,14 +22,15 @@ my $echo = 'Hello World';
 my $echo_result_regex = qr/^$echo[\r\n]?[\r\n]?$/;
 my $buffer = '';
 my $err_buffer = '';
-my $runner = IPC::Open3::Callback->new(
+my $runner = IPC::Open3::Callback->new({
     out_callback => sub {
         $buffer .= shift;
     },
     err_callback => sub {
         $err_buffer .= shift;
-    } );
-$runner->run_command( "echo $echo" );
+    } 
+});
+is($runner->run_command( "echo $echo" ), 0, 'run_command() method child process returns zero (success)');
 is( $err_buffer, '', "errbuffer" );
 like( $buffer, $echo_result_regex, "outbuffer" );
 
