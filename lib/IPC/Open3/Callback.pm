@@ -1,9 +1,9 @@
 #!/usr/bin/perl
 
+use strict;
+use warnings;
+
 package IPC::Open3::Callback::NullLogger;
-{
-    $IPC::Open3::Callback::NullLogger::VERSION = '1.01';
-}
 
 use AutoLoader;
 
@@ -21,22 +21,16 @@ sub new {
 no AutoLoader;
 
 package IPC::Open3::Callback;
-{
-    $IPC::Open3::Callback::VERSION = '1.01';
-}
-
-use strict;
-use warnings;
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(safe_open3);
 
 use Data::Dumper;
+use Hash::Util qw(lock_keys);
 use IO::Select;
 use IO::Socket;
 use IPC::Open3;
 use Symbol qw(gensym);
-use Hash::Util qw(lock_keys);
 
 my $logger;
 eval {
@@ -68,7 +62,7 @@ sub new {
     if ( defined($args_ref) ) {
 
         $logger->logdie('parameters must be an hash reference')
-          unless ( ( ref($args_ref) ) eq 'HASH' );
+            unless ( ( ref($args_ref) ) eq 'HASH' );
         $self->{out_callback}   = $args_ref->{out_callback};
         $self->{err_callback}   = $args_ref->{err_callback};
         $self->{buffer_output}  = $args_ref->{buffer_output};
@@ -77,7 +71,6 @@ sub new {
 
     }
     else {
-
         $self->{select_timeout} = 3;
         $self->{buffer_size}    = 1024;
 
@@ -107,8 +100,7 @@ sub nix_open3 {
     my @command = @_;
 
     my ( $in_fh, $out_fh, $err_fh ) = ( gensym(), gensym(), gensym() );
-    return ( open3( $in_fh, $out_fh, $err_fh, @command ),
-        $in_fh, $out_fh, $err_fh );
+    return ( open3( $in_fh, $out_fh, $err_fh, @command ), $in_fh, $out_fh, $err_fh );
 }
 
 sub run_command {
@@ -131,8 +123,7 @@ sub run_command {
     }
 
     $self->{last_cmd} = join( ' ', @command );
-    $logger->debug( 'Running "' . $self->{last_cmd} . "'" )
-      if ( $logger->is_debug() );
+    $logger->debug( "Running '", $self->{last_cmd}, "'" );
     my ( $pid, $in_fh, $out_fh, $err_fh ) = safe_open3(@command);
     $self->{pid} = $pid;
 
@@ -149,8 +140,7 @@ sub run_command {
             my $bytes_read = sysread( $fh, $line, $self->{buffer_size} );
             if ( !defined($bytes_read) && !$!{ECONNRESET} ) {
                 $logger->error( "sysread failed: ", sub { Dumper(%!) } );
-                $logger->logdie(
-                    "error in running '" . $self->{last_cmd} . "': $!" );
+                $logger->logdie( "error in running '", $self->{last_cmd}, "': ", $! );
             }
             elsif ( !defined($bytes_read) || $bytes_read == 0 ) {
                 $select->remove($fh);
@@ -158,17 +148,13 @@ sub run_command {
             }
             else {
                 if ( $fh == $out_fh ) {
-                    $self->write_to_callback( $out_callback, $line,
-                        $out_buffer_ref, 0, $pid );
+                    $self->write_to_callback( $out_callback, $line, $out_buffer_ref, 0, $pid );
                 }
                 elsif ( $fh == $err_fh ) {
-                    $self->write_to_callback( $err_callback, $line,
-                        $err_buffer_ref, 0, $pid );
+                    $self->write_to_callback( $err_callback, $line, $err_buffer_ref, 0, $pid );
                 }
                 else {
-                    $logger->logdie(
-'Impossible... somehow got a filehandle I dont know about!'
-                    );
+                    $logger->logdie('Impossible... somehow got a filehandle I dont know about!');
                 }
             }
         }
@@ -178,28 +164,22 @@ sub run_command {
     $self->write_to_callback( $out_callback, '', $out_buffer_ref, 1, $pid );
     $self->write_to_callback( $err_callback, '', $err_buffer_ref, 1, $pid );
     return $self->destroy_child();
-
 }
 
 sub DESTROY {
-
     my $self = shift;
     $self->destroy_child();
-
 }
 
 sub destroy_child {
-
     my $self = shift;
 
     waitpid( $self->{pid}, 0 ) if ( $self->{pid} );
     my $exit_code = $? >> 8;
 
-    $logger->debug( "exited '" . $self->{last_cmd} . "' with code $exit_code" )
-      if ( $logger->is_debug() );
+    $logger->debug( "exited '", $self->{last_cmd}, "' with code ", $exit_code );
     $self->{pid} = undef;
     return $exit_code;
-
 }
 
 sub safe_open3 {
@@ -228,8 +208,7 @@ sub win_open3 {
 }
 
 sub win_pipe {
-    my ( $read, $write ) =
-      IO::Socket->socketpair( AF_UNIX, SOCK_STREAM, PF_UNSPEC );
+    my ( $read, $write ) = IO::Socket->socketpair( AF_UNIX, SOCK_STREAM, PF_UNSPEC );
     $read->shutdown(SHUT_WR);     # No more writing for reader
     $write->shutdown(SHUT_RD);    # No more reading for writer
 
@@ -251,8 +230,7 @@ sub write_to_callback {
         return;
     }
 
-    &{$callback}($_)
-      foreach ( $self->append_to_buffer( $buffer_ref, $data, $flush ) );
+    &{$callback}($_) foreach ( $self->append_to_buffer( $buffer_ref, $data, $flush ) );
 }
 
 1;
@@ -261,14 +239,10 @@ __END__
 
 IPC::Open3::Callback - An extension to IPC::Open3 that will feed out and err to callbacks instead of requiring the caller to handle them.
 
-=head1 VERSION
-
-version 1.01
-
 =head1 SYNOPSIS
 
   use IPC::Open3::Callback;
-  my $runner = IPC::Open3::Callback->new( 
+  my $runner = IPC::Open3::Callback->new( {
       out_callback => sub {
           my $data = shift;
           my $pid = shift;
@@ -280,7 +254,7 @@ version 1.01
           my $pid = shift;
 
           print( "$pid STDERR: $data\n" );
-      } );
+      } } );
   my $exit_code = $runner->run_command( 'echo Hello World' );
 
   use IPC::Open3::Callback qw(safe_open3);
@@ -413,7 +387,7 @@ constructor for this call.
 
 Returns the exit code from the command.
 
-=head1 AUTHORS
+=head1 AUTHOR
 
 =over
 
@@ -429,7 +403,7 @@ Alceu Rodrigues de Freitas Junior E<lt>arfreitas@cpan.orgE<gt>
 
 =head1 COPYRIGHT
 
-Copyright 2013 pastdev.com.  All rights reserved.
+Copyright 2013 pastdev.com. All rights reserved.
 
 This library is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.

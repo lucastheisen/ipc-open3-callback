@@ -4,3 +4,10 @@ Revision history for Perl extension IPC::Open3::Callback.
 	- original version; created by h2xs 1.23 with options
 		-X -n IPC::Open3::Callback
 
+1.02  Wed Oct 30 18:29:00 2013
+    - Modified Callback.pm to use hashref instead of hash
+      for arguments.
+    - Added lock_keys to Callback.pm and CommandRunner.pm
+    - Updated dist.ini to add perltidy
+    - Included .perltidyrc in project to support multiple
+      developers.
