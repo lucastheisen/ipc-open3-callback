@@ -21,6 +21,7 @@ sub new {
 no AutoLoader;
 
 package IPC::Open3::Callback;
+# ABSTRACT: An extension to IPC::Open3 that will feed out and err to callbacks instead of requiring the caller to handle them.
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(safe_open3);
@@ -235,10 +236,6 @@ sub write_to_callback {
 
 1;
 __END__
-=head1 NAME
-
-IPC::Open3::Callback - An extension to IPC::Open3 that will feed out and err to callbacks instead of requiring the caller to handle them.
-
 =head1 SYNOPSIS
 
   use IPC::Open3::Callback;
@@ -293,9 +290,7 @@ This module feeds output and error stream from a command to supplied callbacks.
 Thus, this class removes the necessity of dealing with L<IO::Select> by hand and
 also provides a workaround for Windows systems.
 
-=head1 FUNCTIONS
-
-=head2 safe_open3( $command, $arg1, ..., $argN )
+=func safe_open3( $command, $arg1, ..., $argN )
 
 Passes the command and arguments on to C<open3> and returns a list containing:
 
@@ -325,9 +320,7 @@ ensure forked processes do not become zombies.
 This method works for both *nix and Windows sytems.  On a windows system,
 it will use sockets per L<http://www.perlmonks.org/index.pl?node_id=811150>.
 
-=head1 CONSTRUCTOR
-
-=head2 new( \%options )
+=constructor new( \%options )
 
 The constructor creates a new Callback object and optionally sets global 
 callbacks for C<STDOUT> and C<STDERR> streams from commands that will get run by 
@@ -372,9 +365,7 @@ C<STDOUT> or C<STDERR>.
 
 =back
 
-=head1 METHODS
-
-=head2 run_command( $command, $arg1, ..., $argN, \%options )
+=method run_command( $command, $arg1, ..., $argN, \%options )
 
 Will run the specified command with the supplied arguments by passing them on 
 to L<safe_open3|/"safe_open3( $command, $arg1, ..., $argN )">.  Arguments can be embedded in the command string and 
@@ -387,51 +378,9 @@ constructor for this call.
 
 Returns the exit code from the command.
 
-=head1 AUTHOR
-
-=over
-
-=item *
-
-Lucas Theisen E<lt>lucastheisen@pastdev.comE<gt>
-
-=item *
-
-Alceu Rodrigues de Freitas Junior E<lt>arfreitas@cpan.orgE<gt>
-
-=back
-
-=head1 COPYRIGHT
-
-Copyright 2013 pastdev.com. All rights reserved.
-
-This library is free software; you can redistribute it and/or
-modify it under the same terms as Perl itself.
-
 =head1 SEE ALSO
-
-=over
-
-=item *
-
-L<IPC::Open3>
-
-=item *
-
-L<IPC::Open3::Callback::Command>
-
-=item *
-
-L<IPC::Open3::Callback::CommandRunner>
-
-=item *
-
-L<https://github.com/lucastheisen/ipc-open3-callback>
-
-=item *
-
-L<http://stackoverflow.com/q/16675950/516433>
-
-=back
-
-=cut
+IPC::Open3
+IPC::Open3::Callback::Command
+IPC::Open3::Callback::CommandRunner
+https://github.com/lucastheisen/ipc-open3-callback
+http://stackoverflow.com/q/16675950/516433

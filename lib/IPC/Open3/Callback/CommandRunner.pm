@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 package IPC::Open3::Callback::CommandRunner;
+# ABSTRACT: A utility class that wraps IPC::Open3::Callback with available output buffers and an option to die on failure instead of returning exit code.
 
 use Hash::Util qw(lock_keys);
 use IPC::Open3::Callback;
@@ -98,10 +99,6 @@ sub run_or_die {
 
 1;
 __END__
-=head1 NAME
-
-IPC::Open3::Callback::CommandRunner - A utility class that wraps IPC::Open3::Callback with available output buffers and an option to die on failure instead of returning exit code.
-
 =head1 SYNOPSIS
 
   use IPC::Open3::Callback::CommandRunner;
@@ -121,27 +118,23 @@ IPC::Open3::Callback::CommandRunner - A utility class that wraps IPC::Open3::Cal
 Adds more convenience to IPC::Open3::Callback by buffering output and error
 if needed and dieing on failure if wanted.
 
-=head1 CONSTRUCTOR
-
-=head2 new()
+=constructor new()
 
 The constructor creates a new CommandRunner.
 
-=head1 METHODS
-
-=head2 err_buffer()
+=method err_buffer()
 
 Returns the contents of the err_buffer from the last call to 
 L<run|/"run( $command, $arg1, ..., $argN, \%options )"> or 
 L<run_or_die|/"run_or_die( $command, $arg1, ..., $argN, \%options )">.
 
-=head2 out_buffer()
+=method out_buffer()
 
 Returns the contents of the err_buffer from the last call to 
 L<run|/"run( $command, $arg1, ..., $argN, \%options )"> or 
 L<run_or_die|/"run_or_die( $command, $arg1, ..., $argN, \%options )">.
 
-=head2 run( $command, $arg1, ..., $argN, \%options )
+=method run( $command, $arg1, ..., $argN, \%options )
 
 Will run the specified command with the supplied arguments by passing them on to 
 L<run_command|IPC::Open3::Callback/"run_command( $command, $arg1, ..., $argN, \%options )">.  
@@ -168,25 +161,11 @@ and can be accessed via L<err_buffer()|/"err_buffer()">
 
 Returns the exit code from the command.
 
-=head2 run_or_die( $command, $arg1, ..., $argN, \%options )
+=method run_or_die( $command, $arg1, ..., $argN, \%options )
 
 The same as L<run|/"run( $command, $arg1, ..., $argN, \%options )"> exept that it
 will C<die> on a non-zero exit code instead of returning the exit code.
 
-=head1 AUTHOR
-
-=over
-
-=item *
-
-Lucas Theisen E<lt>lucastheisen@pastdev.comE<gt>
-
-=back
-
-=head1 COPYRIGHT
-
-Copyright 2013 pastdev.com.  All rights reserved.
-
-This library is free software; you can redistribute it and/or
-modify it under the same terms as Perl itself.
-
+=head1 SEE ALSO
+IPC::Open3::Callback
+IPC::Open3::Callback::Command

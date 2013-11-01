@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 package IPC::Open3::Callback::Command;
+# ABSTRACT: A utility class that provides subroutines for building shell command strings.
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(command batch_command mkdir_command pipe_command rm_command sed_command);
@@ -160,10 +161,6 @@ sub wrap {
 
 1;
 __END__
-=head1 NAME
-
-IPC::Open3::Callback::Command - A utility class that provides subroutines for building shell command strings.
-
 =head1 SYNOPSIS
 
   use IPC::Open3::Callback::Command qw(command batch_command mkdir_command pipe_command rm_command sed_command);
@@ -225,7 +222,7 @@ machines using existing tools (gnu/powershell/bash...) these utilities can be
 very helpful.  All functions in this module can take a C<\%destination_options>
 hash defining who/where/how to run the command.
 
-=head1 FUNCTIONS
+=head1 OPTIONS
 
 All commands can be supplied with C<\%destination_options>.  
 C<destination_options> control who/where/how to run the command.  The supported
@@ -260,22 +257,22 @@ username is specified, the command will not be wrapped in C<ssh>
 
 =back
 
-=head2 command( $command, \%destination_options )
+=func command( $command, \%destination_options )
 
 This wraps the supplied command with all the destination options.  If no 
 options are supplied, $command is returned.
 
-=head2 batch_command( $command1, $command2, ..., $commandN, \%destination_options )
+=func batch_command( $command1, $command2, ..., $commandN, \%destination_options )
 
 This will join all the commands with a C<;> and apply the supplied 
 C<\%destination_options> to the result.
 
-=head2 mkdir_command( $path1, $path2, ..., $pathN, \%destination_options )
+=func mkdir_command( $path1, $path2, ..., $pathN, \%destination_options )
 
 Results in C<mkdir -p $path1 $path2 ... $pathN> with the 
 C<\%destination_options> applied.
 
-=head2 pipe_command( $command1, $command2, ..., $commandN, \%destination_options )
+=func pipe_command( $command1, $command2, ..., $commandN, \%destination_options )
 
 Identical to 
 L<batch_command|"batch_command( $command1, $command2, ..., $commandN, \%destination_options )">
@@ -287,7 +284,7 @@ Results in C<rm -rf $path1 $path2 ... $pathN> with the
 C<\%destination_options> applied. This is a I<VERY> dangerous command and should
 be used with care.
 
-=head2 sed_command( $expression1, $expression2, ..., $expressionN, \%destination_options )
+=func sed_command( $expression1, $expression2, ..., $expressionN, \%destination_options )
 
 Constructs a sed command
 
@@ -356,20 +353,6 @@ issued on the console, they might show up in the command history...
 
 =back
 
-=head1 AUTHOR
-
-=over
-
-=item *
-
-Lucas Theisen E<lt>lucastheisen@pastdev.comE<gt>
-
-=back
-
-=head1 COPYRIGHT
-
-Copyright 2013 pastdev.com.  All rights reserved.
-
-This library is free software; you can redistribute it and/or
-modify it under the same terms as Perl itself.
-
+=head1 SEE ALSO
+IPC::Open3::Callback
+IPC::Open3::Callback::CommandRunner
