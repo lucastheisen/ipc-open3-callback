@@ -1,5 +1,3 @@
-#!/usr/bin/perl
-
 package IPC::Open3::Callback::NullLogger;
 {
     $IPC::Open3::Callback::NullLogger::VERSION = '1.01';
@@ -37,6 +35,12 @@ use IO::Socket;
 use IPC::Open3;
 use Symbol qw(gensym);
 use Hash::Util qw(lock_keys);
+use parent qw(Class::Accessor);
+
+__PACKAGE__->follow_best_practice;
+__PACKAGE__->mk_accessors(
+    qw(out_callback err_callback buffer_output select_timeout buffer_size pid last_cmd input_buffer)
+);
 
 my $logger;
 eval {
@@ -61,6 +65,7 @@ sub new {
         last_cmd       => undef,
         input_buffer   => undef
     };
+
     bless( $self, $class );
 
     my $args_ref = shift;
