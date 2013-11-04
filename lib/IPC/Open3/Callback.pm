@@ -21,6 +21,7 @@ sub new {
 no AutoLoader;
 
 package IPC::Open3::Callback;
+
 # ABSTRACT: An extension to IPC::Open3 that will feed out and err to callbacks instead of requiring the caller to handle them.
 
 use Exporter qw(import);
@@ -61,7 +62,6 @@ sub new {
     my $args_ref = shift;
 
     if ( defined($args_ref) ) {
-
         $logger->logdie('parameters must be an hash reference')
             unless ( ( ref($args_ref) ) eq 'HASH' );
         $self->{out_callback}   = $args_ref->{out_callback};
@@ -69,7 +69,6 @@ sub new {
         $self->{buffer_output}  = $args_ref->{buffer_output};
         $self->{select_timeout} = $args_ref->{select_timeout} || 3;
         $self->{buffer_size}    = $args_ref->{buffer_size} || 1024;
-
     }
     else {
         $self->{select_timeout} = 3;
@@ -82,7 +81,7 @@ sub new {
     return $self;
 }
 
-sub append_to_buffer {
+sub _append_to_buffer {
     my $self       = shift;
     my $buffer_ref = shift;
     my $data       = $$buffer_ref . shift;
@@ -97,7 +96,7 @@ sub append_to_buffer {
     return @lines;
 }
 
-sub nix_open3 {
+sub _nix_open3 {
     my @command = @_;
 
     my ( $in_fh, $out_fh, $err_fh ) = ( gensym(), gensym(), gensym() );
@@ -105,7 +104,6 @@ sub nix_open3 {
 }
 
 sub run_command {
-
     my $self    = shift;
     my @command = @_;
     my $options = {};
@@ -149,10 +147,10 @@ sub run_command {
             }
             else {
                 if ( $fh == $out_fh ) {
-                    $self->write_to_callback( $out_callback, $line, $out_buffer_ref, 0, $pid );
+                    $self->_write_to_callback( $out_callback, $line, $out_buffer_ref, 0, $pid );
                 }
                 elsif ( $fh == $err_fh ) {
-                    $self->write_to_callback( $err_callback, $line, $err_buffer_ref, 0, $pid );
+                    $self->_write_to_callback( $err_callback, $line, $err_buffer_ref, 0, $pid );
                 }
                 else {
                     $logger->logdie('Impossible... somehow got a filehandle I dont know about!');
@@ -162,17 +160,17 @@ sub run_command {
     }
 
     # flush buffers
-    $self->write_to_callback( $out_callback, '', $out_buffer_ref, 1, $pid );
-    $self->write_to_callback( $err_callback, '', $err_buffer_ref, 1, $pid );
-    return $self->destroy_child();
+    $self->_write_to_callback( $out_callback, '', $out_buffer_ref, 1, $pid );
+    $self->_write_to_callback( $err_callback, '', $err_buffer_ref, 1, $pid );
+    return $self->_destroy_child();
 }
 
 sub DESTROY {
     my $self = shift;
-    $self->destroy_child();
+    $self->_destroy_child();
 }
 
-sub destroy_child {
+sub _destroy_child {
     my $self = shift;
 
     waitpid( $self->{pid}, 0 ) if ( $self->{pid} );
@@ -184,7 +182,7 @@ sub destroy_child {
 }
 
 sub safe_open3 {
-    return ( $^O =~ /MSWin32/ ) ? win_open3(@_) : nix_open3(@_);
+    return ( $^O =~ /MSWin32/ ) ? _win_open3(@_) : _nix_open3(@_);
 }
 
 sub send_input {
@@ -192,12 +190,12 @@ sub send_input {
     $self->{input_buffer} = shift;
 }
 
-sub win_open3 {
+sub _win_open3 {
     my @command = @_;
 
-    my ( $in_read,  $in_write )  = win_pipe();
-    my ( $out_read, $out_write ) = win_pipe();
-    my ( $err_read, $err_write ) = win_pipe();
+    my ( $in_read,  $in_write )  = _win_pipe();
+    my ( $out_read, $out_write ) = _win_pipe();
+    my ( $err_read, $err_write ) = _win_pipe();
 
     my $pid = open3(
         '>&' . fileno($in_read),
@@ -208,7 +206,7 @@ sub win_open3 {
     return ( $pid, $in_write, $out_read, $err_read );
 }
 
-sub win_pipe {
+sub _win_pipe {
     my ( $read, $write ) = IO::Socket->socketpair( AF_UNIX, SOCK_STREAM, PF_UNSPEC );
     $read->shutdown(SHUT_WR);     # No more writing for reader
     $write->shutdown(SHUT_RD);    # No more reading for writer
@@ -216,7 +214,7 @@ sub win_pipe {
     return ( $read, $write );
 }
 
-sub write_to_callback {
+sub _write_to_callback {
     my $self       = shift;
     my $callback   = shift;
     my $data       = shift;
@@ -231,7 +229,7 @@ sub write_to_callback {
         return;
     }
 
-    &{$callback}($_) foreach ( $self->append_to_buffer( $buffer_ref, $data, $flush ) );
+    &{$callback}($_) foreach ( $self->_append_to_buffer( $buffer_ref, $data, $flush ) );
 }
 
 1;

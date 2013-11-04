@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 package IPC::Open3::Callback::CommandRunner;
+
 # ABSTRACT: A utility class that wraps IPC::Open3::Callback with available output buffers and an option to die on failure instead of returning exit code.
 
 use Hash::Util qw(lock_keys);
@@ -12,7 +13,7 @@ use IPC::Open3::Callback;
 sub new {
     my $prototype = shift;
     my $class     = ref($prototype) || $prototype;
-    my $self      = { command_runner => IPC::Open3::Callback->new(), };
+    my $self      = { command_runner => IPC::Open3::Callback->new() };
     bless( $self, $class );
 
     lock_keys( %{$self}, keys( %{$self} ), 'out_buffer', 'err_buffer' );
@@ -20,7 +21,7 @@ sub new {
     return $self;
 }
 
-sub build_callback {
+sub _build_callback {
     my $self       = shift;
     my $out_or_err = shift;
     my $options    = shift;
@@ -37,27 +38,27 @@ sub build_callback {
     return;
 }
 
-sub clear_buffers {
+sub _clear_buffers {
     my $self = shift;
     delete( $self->{out_buffer} );
     delete( $self->{err_buffer} );
 }
 
-sub err_buffer {
+sub get_err_buffer {
     return join( '', @{ shift->{err_buffer} } );
 }
 
-sub options {
+sub _options {
     my $self    = shift;
     my %options = @_;
 
-    $options{out_callback} = $self->build_callback( 'out', \%options );
-    $options{err_callback} = $self->build_callback( 'err', \%options );
+    $options{out_callback} = $self->_build_callback( 'out', \%options );
+    $options{err_callback} = $self->_build_callback( 'err', \%options );
 
     return %options;
 }
 
-sub out_buffer {
+sub get_out_buffer {
     return join( '', @{ shift->{out_buffer} } );
 }
 
@@ -68,10 +69,10 @@ sub run {
 
     # if last arg is hashref, its command options not arg...
     if ( ref( $command[-1] ) eq 'HASH' ) {
-        %options = $self->options( %{ pop(@command) } );
+        %options = $self->_options( %{ pop(@command) } );
     }
 
-    $self->clear_buffers();
+    $self->_clear_buffers();
 
     return $self->{command_runner}->run_command( @command, \%options );
 }
@@ -83,10 +84,10 @@ sub run_or_die {
 
     # if last arg is hashref, its command options not arg...
     if ( ref( $command[-1] ) eq 'HASH' ) {
-        %options = $self->options( %{ pop(@command) } );
+        %options = $self->_options( %{ pop(@command) } );
     }
 
-    $self->clear_buffers();
+    $self->_clear_buffers();
 
     my $exit_code = $self->{command_runner}->run_command( @command, \%options );
     if ($exit_code) {
@@ -122,13 +123,13 @@ if needed and dieing on failure if wanted.
 
 The constructor creates a new CommandRunner.
 
-=method err_buffer()
+=attribute get_err_buffer()
 
 Returns the contents of the err_buffer from the last call to 
 L<run|/"run( $command, $arg1, ..., $argN, \%options )"> or 
 L<run_or_die|/"run_or_die( $command, $arg1, ..., $argN, \%options )">.
 
-=method out_buffer()
+=attribute get_out_buffer()
 
 Returns the contents of the err_buffer from the last call to 
 L<run|/"run( $command, $arg1, ..., $argN, \%options )"> or 

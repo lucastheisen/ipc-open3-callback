@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 package IPC::Open3::Callback::Command;
+
 # ABSTRACT: A utility class that provides subroutines for building shell command strings.
 
 use Exporter qw(import);
