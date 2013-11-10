@@ -33,8 +33,8 @@ use IO::Select;
 use IO::Socket;
 use IPC::Open3;
 use Symbol qw(gensym);
-use Class::Accessor;
 
+use parent qw(Class::Accessor);
 __PACKAGE__->follow_best_practice;
 __PACKAGE__->mk_accessors(
     qw(out_callback err_callback buffer_output select_timeout buffer_size pid input_buffer));
@@ -48,26 +48,6 @@ if ($@) {
     $logger = IPC::Open3::Callback::NullLogger->new();
 }
 
-sub get_last_cmd {
-
-    my $self = shift;
-
-    return $self->{last_cmd};
-
-}
-
-sub set_last_cmd {
-
-    my $self    = shift;
-    my $cmd_ref = shift;    #array ref
-
-    $logger->logdie('the command parameter must be an array reference')
-        unless ( ( ref($cmd_ref) ) eq 'ARRAY' );
-
-    $self->{last_cmd} = join( ' ', @{$cmd_ref} );
-
-}
-
 sub new {
     my $prototype = shift;
     my $class = ref($prototype) || $prototype;
@@ -79,7 +59,7 @@ sub new {
         select_timeout => undef,
         buffer_size    => undef,
         pid            => undef,
-        last_cmd       => undef,
+        last_command   => undef,
         input_buffer   => undef
     };
     bless( $self, $class );
@@ -121,6 +101,35 @@ sub _append_to_buffer {
     return @lines;
 }
 
+sub clear_input_buffer {
+    my $self = shift;
+    delete( $self->{input_buffer} );
+}
+
+sub DESTROY {
+    my $self = shift;
+    $self->_destroy_child();
+}
+
+sub _destroy_child {
+    my $self = shift;
+
+    waitpid( $self->get_pid(), 0 ) if ( $self->get_pid() );
+    my $exit_code = $? >> 8;
+
+    $logger->debug( "exited '", $self->get_last_command(), "' with code ", $exit_code );
+    $self->set_pid(undef);
+    return $exit_code;
+}
+
+sub get_last_command {
+
+    my $self = shift;
+
+    return $self->{last_command};
+
+}
+
 sub _nix_open3 {
     my @command = @_;
 
@@ -146,8 +155,8 @@ sub run_command {
         $err_buffer_ref = \'';
     }
 
-    $self->set_last_cmd( \@command );
-    $logger->debug( "Running '", $self->get_last_cmd(), "'" );
+    $self->set_last_command( \@command );
+    $logger->debug( "Running '", $self->get_last_command(), "'" );
     my ( $pid, $in_fh, $out_fh, $err_fh ) = safe_open3(@command);
     $self->set_pid($pid);
 
@@ -164,7 +173,7 @@ sub run_command {
             my $bytes_read = sysread( $fh, $line, $self->get_buffer_size() );
             if ( !defined($bytes_read) && !$!{ECONNRESET} ) {
                 $logger->error( "sysread failed: ", sub { Dumper(%!) } );
-                $logger->logdie( "error in running '", $self->get_last_cmd(), "': ", $! );
+                $logger->logdie( "error in running '", $self->get_last_command(), "': ", $! );
             }
             elsif ( !defined($bytes_read) || $bytes_read == 0 ) {
                 $select->remove($fh);
@@ -190,22 +199,6 @@ sub run_command {
     return $self->_destroy_child();
 }
 
-sub DESTROY {
-    my $self = shift;
-    $self->_destroy_child();
-}
-
-sub _destroy_child {
-    my $self = shift;
-
-    waitpid( $self->get_pid(), 0 ) if ( $self->get_pid() );
-    my $exit_code = $? >> 8;
-
-    $logger->debug( "exited '", $self->get_last_cmd(), "' with code ", $exit_code );
-    $self->set_pid(undef);
-    return $exit_code;
-}
-
 sub safe_open3 {
     return ( $^O =~ /MSWin32/ ) ? _win_open3(@_) : _nix_open3(@_);
 }
@@ -215,11 +208,14 @@ sub send_input {
     $self->set_input_buffer(shift);
 }
 
-sub clear_input_buffer {
+sub set_last_command {
+    my $self        = shift;
+    my $command_ref = shift;    #array ref
 
-    my $self = shift;
-    $self->{input_buffer} = undef;
+    $logger->logdie('the command parameter must be an array reference')
+        unless ( ( ref($command_ref) ) eq 'ARRAY' );
 
+    $self->{last_command} = join( ' ', @{$command_ref} );
 }
 
 sub _win_open3 {
@@ -265,6 +261,7 @@ sub _write_to_callback {
 }
 
 1;
+
 __END__
 =head1 SYNOPSIS
 
@@ -394,6 +391,28 @@ timeout which will cause the loop to block until output is ready on either
 C<STDOUT> or C<STDERR>.
 
 =back
+
+=attribute get_err_callback()
+
+=attribute set_err_callback( &subroutine )
+
+A subroutine to be called whenever a chunk of error is sent to STDERR by the
+opened process.
+
+=attribute get_last_command()
+
+=attribute set_last_command( @command )
+
+The last command run by the L<run_command|/"run_command( $command, $arg1, ..., $argN, \%options )"> method.
+The setter will turn the array into a string with join( ' ', @command ) and the getter
+will return that string.
+
+=attribute get_out_callback()
+
+=attribute set_out_callback( &subroutine )
+
+A subroutine to be called whenever a chunk of output is sent to STDOUT by the
+opened process.
 
 =method run_command( $command, $arg1, ..., $argN, \%options )
 

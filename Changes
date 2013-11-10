@@ -1,5 +1,9 @@
 Revision history for Perl module IPC::Open3::Callback
 
+1.04 2013-11-10
+    - Added Class::Accessor to Callback.pm and added various
+      accessors.
+
 1.04 2013-11-04
     - Reformatted Changes file to conform to CPAN::Changes::Spec
 
