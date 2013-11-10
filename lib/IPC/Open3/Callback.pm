@@ -33,6 +33,11 @@ use IO::Select;
 use IO::Socket;
 use IPC::Open3;
 use Symbol qw(gensym);
+use Class::Accessor;
+
+__PACKAGE__->follow_best_practice;
+__PACKAGE__->mk_accessors(
+    qw(out_callback err_callback buffer_output select_timeout buffer_size pid input_buffer));
 
 my $logger;
 eval {
@@ -41,6 +46,26 @@ eval {
 };
 if ($@) {
     $logger = IPC::Open3::Callback::NullLogger->new();
+}
+
+sub get_last_cmd {
+
+    my $self = shift;
+
+    return $self->{last_cmd};
+
+}
+
+sub set_last_cmd {
+
+    my $self    = shift;
+    my $cmd_ref = shift;    #array ref
+
+    $logger->logdie('the command parameter must be an array reference')
+        unless ( ( ref($cmd_ref) ) eq 'ARRAY' );
+
+    $self->{last_cmd} = join( ' ', @{$cmd_ref} );
+
 }
 
 sub new {
@@ -114,32 +139,32 @@ sub run_command {
     }
 
     my ( $out_callback, $out_buffer_ref, $err_callback, $err_buffer_ref );
-    $out_callback = $options->{out_callback} || $self->{out_callback};
-    $err_callback = $options->{err_callback} || $self->{err_callback};
-    if ( $options->{buffer_output} || $self->{buffer_output} ) {
+    $out_callback = $options->{out_callback} || $self->get_out_callback();
+    $err_callback = $options->{err_callback} || $self->get_err_callback();
+    if ( $options->{buffer_output} || $self->get_buffer_output() ) {
         $out_buffer_ref = \'';
         $err_buffer_ref = \'';
     }
 
-    $self->{last_cmd} = join( ' ', @command );
-    $logger->debug( "Running '", $self->{last_cmd}, "'" );
+    $self->set_last_cmd( \@command );
+    $logger->debug( "Running '", $self->get_last_cmd(), "'" );
     my ( $pid, $in_fh, $out_fh, $err_fh ) = safe_open3(@command);
-    $self->{pid} = $pid;
+    $self->set_pid($pid);
 
     my $select = IO::Select->new();
     $select->add( $out_fh, $err_fh );
 
-    while ( my @ready = $select->can_read( $self->{select_timeout} ) ) {
-        if ( $self->{input_buffer} ) {
-            syswrite( $in_fh, $self->{input_buffer} );
-            delete( $self->{input_buffer} );
+    while ( my @ready = $select->can_read( $self->get_select_timeout() ) ) {
+        if ( $self->get_input_buffer() ) {
+            syswrite( $in_fh, $self->get_input_buffer() );
+            $self->clear_input_buffer();
         }
         foreach my $fh (@ready) {
             my $line;
-            my $bytes_read = sysread( $fh, $line, $self->{buffer_size} );
+            my $bytes_read = sysread( $fh, $line, $self->get_buffer_size() );
             if ( !defined($bytes_read) && !$!{ECONNRESET} ) {
                 $logger->error( "sysread failed: ", sub { Dumper(%!) } );
-                $logger->logdie( "error in running '", $self->{last_cmd}, "': ", $! );
+                $logger->logdie( "error in running '", $self->get_last_cmd(), "': ", $! );
             }
             elsif ( !defined($bytes_read) || $bytes_read == 0 ) {
                 $select->remove($fh);
@@ -147,10 +172,10 @@ sub run_command {
             }
             else {
                 if ( $fh == $out_fh ) {
-                    $self->_write_to_callback( $out_callback, $line, $out_buffer_ref, 0, $pid );
+                    $self->_write_to_callback( $out_callback, $line, $out_buffer_ref, 0 );
                 }
                 elsif ( $fh == $err_fh ) {
-                    $self->_write_to_callback( $err_callback, $line, $err_buffer_ref, 0, $pid );
+                    $self->_write_to_callback( $err_callback, $line, $err_buffer_ref, 0 );
                 }
                 else {
                     $logger->logdie('Impossible... somehow got a filehandle I dont know about!');
@@ -160,8 +185,8 @@ sub run_command {
     }
 
     # flush buffers
-    $self->_write_to_callback( $out_callback, '', $out_buffer_ref, 1, $pid );
-    $self->_write_to_callback( $err_callback, '', $err_buffer_ref, 1, $pid );
+    $self->_write_to_callback( $out_callback, '', $out_buffer_ref, 1 );
+    $self->_write_to_callback( $err_callback, '', $err_buffer_ref, 1 );
     return $self->_destroy_child();
 }
 
@@ -173,11 +198,11 @@ sub DESTROY {
 sub _destroy_child {
     my $self = shift;
 
-    waitpid( $self->{pid}, 0 ) if ( $self->{pid} );
+    waitpid( $self->get_pid(), 0 ) if ( $self->get_pid() );
     my $exit_code = $? >> 8;
 
-    $logger->debug( "exited '", $self->{last_cmd}, "' with code ", $exit_code );
-    $self->{pid} = undef;
+    $logger->debug( "exited '", $self->get_last_cmd(), "' with code ", $exit_code );
+    $self->set_pid(undef);
     return $exit_code;
 }
 
@@ -187,7 +212,14 @@ sub safe_open3 {
 
 sub send_input {
     my $self = shift;
-    $self->{input_buffer} = shift;
+    $self->set_input_buffer(shift);
+}
+
+sub clear_input_buffer {
+
+    my $self = shift;
+    $self->{input_buffer} = undef;
+
 }
 
 sub _win_open3 {
@@ -215,17 +247,17 @@ sub _win_pipe {
 }
 
 sub _write_to_callback {
+
     my $self       = shift;
     my $callback   = shift;
     my $data       = shift;
     my $buffer_ref = shift;
     my $flush      = shift;
-    my $pid        = shift;
 
     return if ( !defined($callback) );
 
     if ( !defined($buffer_ref) ) {
-        &{$callback}( $data, $pid );
+        &{$callback}( $data, $self->get_pid() );
         return;
     }
 
