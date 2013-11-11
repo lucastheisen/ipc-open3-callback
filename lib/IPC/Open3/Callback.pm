@@ -37,7 +37,8 @@ use Symbol qw(gensym);
 use parent qw(Class::Accessor);
 __PACKAGE__->follow_best_practice;
 __PACKAGE__->mk_accessors(
-    qw(out_callback err_callback buffer_output select_timeout buffer_size pid input_buffer));
+    qw(out_callback err_callback buffer_output select_timeout buffer_size input_buffer));
+__PACKAGE__->mk_ro_accessors(qw(pid last_command));
 
 my $logger;
 eval {
@@ -47,6 +48,17 @@ eval {
 if ($@) {
     $logger = IPC::Open3::Callback::NullLogger->new();
 }
+
+sub _set_pid {
+		
+		my $self = shift;
+		my $value = shift;
+
+		$logger->logdie('the parameter must be an integer') unless((defined($value)) and ($value =~ /^\d+$/));
+
+		$self->{pid} = $value;
+		
+		}
 
 sub new {
     my $prototype = shift;
@@ -118,16 +130,7 @@ sub _destroy_child {
     my $exit_code = $? >> 8;
 
     $logger->debug( "exited '", $self->get_last_command(), "' with code ", $exit_code );
-    $self->set_pid(undef);
     return $exit_code;
-}
-
-sub get_last_command {
-
-    my $self = shift;
-
-    return $self->{last_command};
-
 }
 
 sub _nix_open3 {
@@ -150,15 +153,16 @@ sub run_command {
     my ( $out_callback, $out_buffer_ref, $err_callback, $err_buffer_ref );
     $out_callback = $options->{out_callback} || $self->get_out_callback();
     $err_callback = $options->{err_callback} || $self->get_err_callback();
+
     if ( $options->{buffer_output} || $self->get_buffer_output() ) {
         $out_buffer_ref = \'';
         $err_buffer_ref = \'';
     }
 
-    $self->set_last_command( \@command );
+    $self->_set_last_command( \@command );
     $logger->debug( "Running '", $self->get_last_command(), "'" );
     my ( $pid, $in_fh, $out_fh, $err_fh ) = safe_open3(@command);
-    $self->set_pid($pid);
+    $self->_set_pid($pid);
 
     my $select = IO::Select->new();
     $select->add( $out_fh, $err_fh );
@@ -208,7 +212,7 @@ sub send_input {
     $self->set_input_buffer(shift);
 }
 
-sub set_last_command {
+sub _set_last_command {
     my $self        = shift;
     my $command_ref = shift;    #array ref
 
@@ -315,121 +319,213 @@ __END__
 
 This module feeds output and error stream from a command to supplied callbacks.  
 Thus, this class removes the necessity of dealing with L<IO::Select> by hand and
-also provides a workaround for Windows systems.
+also provides a workaround for Microsoft Windows' IPC bad reputation.
 
-=func safe_open3( $command, $arg1, ..., $argN )
+=head1 EXPORTS
+
+Only C<safe_open3> is exported on demand.
+
+=head2 safe_open3( $command, $arg1, ..., $argN )
 
 Passes the command and arguments on to C<open3> and returns a list containing:
 
 =over 4
 
-=item pid
+=item 1.
 
-The process id of the forked process
+The process id of the forked process.
 
-=item stdin
+=item 2.
 
-An L<IO::Handle> to STDIN for the process
+An L<IO::Handle> to STDIN for the process.
 
-=item stdout
+=item 3. 
 
-An L<IO::Handle> to STDOUT for the process
+An L<IO::Handle> to STDOUT for the process.
 
-=item stderr
+=item 4.
 
-An L<IO::Handle> to STDERR for the process
+An L<IO::Handle> to STDERR for the process.
 
 =back
 
-As with C<open3>, it is the callers responsibility to waitpid to
+As with C<open3>, it is the callers responsibility to C<waitpid> to
 ensure forked processes do not become zombies.
 
-This method works for both *nix and Windows sytems.  On a windows system,
-it will use sockets per L<http://www.perlmonks.org/index.pl?node_id=811150>.
+This method works for both *nix and Microsoft Windows OS's.  On a Windows system,
+it will use sockets as described in L<http://www.perlmonks.org/index.pl?node_id=811150>.
 
-=constructor new( \%options )
+=head1 ATTRIBUTES
 
-The constructor creates a new Callback object and optionally sets global 
-callbacks for C<STDOUT> and C<STDERR> streams from commands that will get run by 
-this object (can be overridden per call to 
-L<run_command|/"run_command( $command, $arg1, ..., $argN, \%options )">).
-
-=over 4
-
-=item out_callback
+=head2 out_callback
 
 A subroutine to call for each chunk of text written to C<STDOUT>. This subroutine
 will be called with 2 arguments:
 
 =over 4
 
-=item data
+=item 1.
 
-A chunk of text written to the stream
+A chunk of text written to the stream.
 
-=item pid
+=item 2.
 
-The pid of the forked process
+The pid of the forked process.
 
 =back
 
-=item err_callback
+=head2 err_callback
 
 A subroutine to call for each chunk of text written to C<STDERR>. This subroutine
-will be called with the same 2 arguments as C<out_callback>
+will be called with the same 2 arguments as C<out_callback>.
 
-=item buffer_output
+=head2 buffer_output
 
 A boolean value, if true, will buffer output and send to callback one line
-at a time (waits for '\n').  Otherwise, sends text in the same chunks returned
-by L<sysread>.
+at a time (waits for C<\n>).  Otherwise, sends text in the same chunks returned
+by C<sysread>.
 
-=item select_timeout
+=head2 select_timeout
 
-The timeout, in seconds, provided to C<IO::Select>, by default 0 meaning no
+The timeout, in seconds, provided to L<IO::Select>, by default 0 meaning no
 timeout which will cause the loop to block until output is ready on either
 C<STDOUT> or C<STDERR>.
 
+=head2 buffer_size
+
+The size in bytes of the amount of data that C<sysread> will have to consider. It defaults to 1024.
+
+Changing the buffer size can increase memory while improving performance since will reduce the amount of loops required to read all data.
+
+=head2 pid
+
+As integer as the process identificator of the OS.
+
+=head2 input_buffer
+
+A string with additional commands that can be submitted to the executed program through it's STDIN handle.
+
+This attribute value is removed automatically during the C<run_command> method execution.
+
+=head2 last_command
+
+An string representing the last command executed by the L<IPC::Open3::Callback> instance.
+
+=head1 METHODS
+
+=head2 new
+
+The constructor creates a new Callback object and optionally sets global 
+callbacks for C<STDOUT> and C<STDERR> streams from commands that will get run by 
+this object (can be overridden per call to C<run_command>).
+
+Expects a hash reference as parameter containing the following keys explained below:
+
+=over 4
+
+=item *
+
+out_callback
+
+=item *
+
+err_callback
+
+=item *
+
+buffer_output
+
+=item *
+
+select_timeout
+
 =back
 
-=attribute get_err_callback()
+=head2 get_err_callback
 
-=attribute set_err_callback( &subroutine )
+Returns the content of the L<err_callback|err_callback> attribute.
 
-A subroutine to be called whenever a chunk of error is sent to STDERR by the
-opened process.
+=head2 set_err_callback
 
-=attribute get_last_command()
+Sets the attribute L<err_callback|err_callback>. Expects a code reference as parameter.
 
-=attribute set_last_command( @command )
+=head2 get_last_command
 
-The last command run by the L<run_command|/"run_command( $command, $arg1, ..., $argN, \%options )"> method.
-The setter will turn the array into a string with join( ' ', @command ) and the getter
-will return that string.
+Returns the content of the L<last_command|last_command> attribute.
 
-=attribute get_out_callback()
+=head2 _set_last_command
 
-=attribute set_out_callback( &subroutine )
+Sets the attribute L<last_command|last_command>. Expects an array reference as parameter.
 
-A subroutine to be called whenever a chunk of output is sent to STDOUT by the
-opened process.
+This is a "private" method and should be invoked internally only.
 
-=method run_command( $command, $arg1, ..., $argN, \%options )
+=head2 get_out_callback
+
+Returns the content of the L<out_callback|out_callback> attribute.
+
+=head2 set_out_callback
+
+Sets the L<out_callback|out_callback> attribute. Expects a code reference as parameter.
+
+=head2 get_buffer_size
+
+Returns the contents of the attribute L<buffer_size|buffer_size>.
+
+=head2 set_buffer_size
+
+Sets the contents of the attribute L<buffer_size|buffer_size>. Expects as parameter an integer.
+
+=head2 get_pid
+
+Returns the content of the L<pid|pid> attribute.
+
+=head2 _set_pid
+
+Sets the attribute L<pid|pid>. Expects an integer as parameter.
+
+This is a "private" method and should be used internally only.
+
+=head2 get_input_buffer
+
+Returns the contents of the L<input_buffer|input_buffer> attribute.
+
+=head2 set_input_buffer
+
+Sets the attribute L<input_buffer|input_buffer>. Expects an string as parameter.
+
+=head2 run_command
 
 Will run the specified command with the supplied arguments by passing them on 
 to L<safe_open3|/"safe_open3( $command, $arg1, ..., $argN )">.  Arguments can be embedded in the command string and 
 are thus optional.
 
-If the last argument to this method is a hashref (C<ref(@_[-1]) eq 'HASH'>), then
-it is treated as an options hash.  The supported allowed options are the same
-as the constructor and will be used in preference to the values set in the 
-constructor for this call.
+If the last argument to this method is a hash reference then it will be considered as the same allowed options used in the
+L<constructor|new> and will be used in preference to the values set in the constructor for this call.
 
 Returns the exit code from the command.
 
 =head1 SEE ALSO
-IPC::Open3
-IPC::Open3::Callback::Command
-IPC::Open3::Callback::CommandRunner
-https://github.com/lucastheisen/ipc-open3-callback
-http://stackoverflow.com/q/16675950/516433
+
+=over
+
+=item *
+
+L<IPC::Open3>
+
+=item *
+
+L<IPC::Open3::Callback::Command>
+
+=item *
+
+L<IPC::Open3::Callback::CommandRunner>
+
+=item *
+
+L<https://github.com/lucastheisen/ipc-open3-callback>
+
+=item *
+
+L<http://stackoverflow.com/q/16675950/516433>
+
+=back
