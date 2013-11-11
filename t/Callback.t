@@ -1,40 +1,57 @@
-# Before `make install' is performed this script should be runnable with
-# `make test'. After `make install' it should work as `perl Silly-Proj.t'
-
-#########################
-
-# change 'tests => 1' to 'tests => last_test_to_print';
-
 use strict;
 use warnings;
-
-use Test::More tests => 7;
+use Test::More tests => 16;
+use IPC::Open3::Callback qw(safe_open3);
 
 BEGIN { use_ok('IPC::Open3::Callback') }
 
-#########################
+my @methods = (
+    'new',               'get_err_callback', 'set_err_callback', 'get_last_command',
+    '_set_last_command', 'get_out_callback', 'set_out_callback', 'get_buffer_size',
+    'set_buffer_size',   'get_pid',          '_set_pid',         'get_input_buffer',
+    'run_command'
+);
 
-# Insert your test code below, the Test::More module is use()ed here so read
-# its man page ( perldoc Test::More ) for help writing this test script.
-
-use IPC::Open3::Callback qw(safe_open3);
 my $echo              = 'Hello World';
 my $echo_result_regex = qr/^$echo[\r\n]?[\r\n]?$/;
 my $buffer            = '';
 my $err_buffer        = '';
-my $runner            = IPC::Open3::Callback->new(
+my $runner;
+
+ok( $runner = IPC::Open3::Callback->new(
+        {   out_callback => sub {
+                $buffer .= shift;
+            },
+            err_callback => sub {
+                $err_buffer .= shift;
+                }
+        }
+    ),
+    'can get an instance'
+);
+
+isa_ok( $runner, 'IPC::Open3::Callback' );
+can_ok( $runner, @methods );
+isa_ok( $runner->get_out_callback(), 'CODE' );
+isa_ok( $runner->get_err_callback(), 'CODE' );
+is( $runner->get_buffer_size(), 1024, 'get_buffer_size returns the default value' );
+is( $runner->run_command("echo $echo"),
+    0, 'run_command() method child process returns zero (success)' );
+$runner->set_buffer_size(512);
+is( $runner->get_buffer_size(),  512,          'get_buffer_size returns the new value' );
+is( $runner->get_last_command(), "echo $echo", 'get_last_command returns the correct value' );
+is( $err_buffer,                 '',           "err_buffer has the correct value" );
+like( $buffer, $echo_result_regex, "outbuffer has the correct value" );
+
+my $pid;
+$runner->run_command(
+    'echo', 'hello', 'world',
     {   out_callback => sub {
-            $buffer .= shift;
-        },
-        err_callback => sub {
-            $err_buffer .= shift;
+            $pid = $runner->get_pid();
             }
     }
 );
-is( $runner->run_command("echo $echo"),
-    0, 'run_command() method child process returns zero (success)' );
-is( $err_buffer, '', "errbuffer" );
-like( $buffer, $echo_result_regex, "outbuffer" );
+like( $pid, qr/^\d+$/, 'get_pid returns something like a PID' );
 
 $buffer = '';
 $runner = IPC::Open3::Callback->new();
