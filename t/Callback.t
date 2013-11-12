@@ -43,7 +43,7 @@ is( $runner->get_last_command(), "echo $echo", 'get_last_command returns the cor
 is( $err_buffer,                 '',           "err_buffer has the correct value" );
 like( $buffer, $echo_result_regex, "outbuffer has the correct value" );
 
-my $pid;
+my ( $pid, $in, $out, $err );
 $runner->run_command(
     'echo', 'hello', 'world',
     {   out_callback => sub {
@@ -64,7 +64,7 @@ $runner->run_command(
 );
 like( $buffer, $echo_result_regex, "out_callback as command option" );
 
-my ( $pid, $in, $out, $err ) = safe_open3("echo $echo");
+( $pid, $in, $out, $err ) = safe_open3("echo $echo");
 $buffer = '';
 my $select = IO::Select->new();
 $select->add($out);
