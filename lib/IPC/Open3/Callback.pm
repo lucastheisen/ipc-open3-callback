@@ -38,7 +38,7 @@ use Symbol qw(gensym);
 use parent qw(Class::Accessor);
 __PACKAGE__->follow_best_practice;
 __PACKAGE__->mk_accessors(
-    qw(out_callback err_callback buffer_output select_timeout buffer_size input_buffer));
+    qw(out_callback err_callback buffer_output select_timeout buffer_size input_buffer) );
 __PACKAGE__->mk_ro_accessors(qw(pid last_command));
 
 my $logger;
@@ -49,17 +49,6 @@ eval {
 if ($@) {
     $logger = IPC::Open3::Callback::NullLogger->new();
 }
-
-sub _set_pid {
-		
-		my $self = shift;
-		my $value = shift;
-
-		$logger->logdie('the parameter must be an integer') unless((defined($value)) and ($value =~ /^\d+$/));
-
-		$self->{pid} = $value;
-		
-		}
 
 sub new {
     my $prototype = shift;
@@ -197,7 +186,8 @@ sub run_command {
                     $self->_write_to_callback( $err_callback, $line, $err_buffer_ref, 0 );
                 }
                 else {
-                    $logger->logdie('Impossible... somehow got a filehandle I dont know about!');
+                    $logger->logdie(
+                        'Impossible... somehow got a filehandle I dont know about!' );
                 }
             }
         }
