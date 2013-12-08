@@ -41,6 +41,20 @@ $runner->set_buffer_size(512);
 is( $runner->get_buffer_size(),  512,          'get_buffer_size returns the new value' );
 is( $runner->get_last_command(), "echo $echo", 'get_last_command returns the correct value' );
 is( $err_buffer,                 '',           "err_buffer has the correct value" );
+like( $buffer,            $echo_result_regex, "outbuffer has the correct value" );
+like( $runner->get_pid(), qr/^\d+$/,          'get_pid returns something like a PID' );
+
+isa_ok( $runner, 'IPC::Open3::Callback' );
+can_ok( $runner, @methods );
+isa_ok( $runner->get_out_callback(), 'CODE' );
+isa_ok( $runner->get_err_callback(), 'CODE' );
+is( $runner->get_buffer_size(), 1024, 'get_buffer_size returns the default value' );
+is( $runner->run_command("echo $echo"),
+    0, 'run_command() method child process returns zero (success)' );
+$runner->set_buffer_size(512);
+is( $runner->get_buffer_size(),  512,          'get_buffer_size returns the new value' );
+is( $runner->get_last_command(), "echo $echo", 'get_last_command returns the correct value' );
+is( $err_buffer,                 '',           "err_buffer has the correct value" );
 like( $buffer, $echo_result_regex, "outbuffer has the correct value" );
 
 my ( $pid, $in, $out, $err );
@@ -68,7 +82,9 @@ like( $buffer, $echo_result_regex, "out_callback as command option" );
 $buffer = '';
 my $select = IO::Select->new();
 $select->add($out);
+
 while ( my @ready = $select->can_read(5) ) {
+
     foreach my $fh (@ready) {
         my $line;
         my $bytes_read = sysread( $fh, $line, 1024 );
@@ -88,7 +104,9 @@ while ( my @ready = $select->can_read(5) ) {
             }
         }
     }
+
 }
+
 like( $buffer, $echo_result_regex, "safe_open3 read out" );
 waitpid( $pid, 0 );
 my $exit_code = $? >> 8;
