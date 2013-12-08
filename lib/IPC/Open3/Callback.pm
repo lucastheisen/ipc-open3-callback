@@ -23,6 +23,7 @@ no AutoLoader;
 package IPC::Open3::Callback;
 
 # ABSTRACT: An extension to IPC::Open3 that will feed out and err to callbacks instead of requiring the caller to handle them.
+# PODNAME: IPC::Open3::Callback
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(safe_open3);
@@ -65,14 +66,14 @@ sub new {
     my $class = ref($prototype) || $prototype;
 
     my $self = {
-        out_callback   => undef,
-        err_callback   => undef,
         buffer_output  => undef,
-        select_timeout => undef,
         buffer_size    => undef,
-        pid            => undef,
+        err_callback   => undef,
+        input_buffer   => undef,
         last_command   => undef,
-        input_buffer   => undef
+        out_callback   => undef,
+        pid            => undef,
+        select_timeout => undef,
     };
     bless( $self, $class );
 
@@ -113,7 +114,7 @@ sub _append_to_buffer {
     return @lines;
 }
 
-sub clear_input_buffer {
+sub _clear_input_buffer {
     my $self = shift;
     delete( $self->{input_buffer} );
 }
@@ -130,6 +131,7 @@ sub _destroy_child {
     my $exit_code = $? >> 8;
 
     $logger->debug( "exited '", $self->get_last_command(), "' with code ", $exit_code );
+    $self->_set_pid();
     return $exit_code;
 }
 
@@ -150,7 +152,9 @@ sub run_command {
         $options = pop(@command);
     }
 
-    my ( $out_callback, $out_buffer_ref, $err_callback, $err_buffer_ref );
+    my ($out_callback,   $out_buffer_ref, $err_callback,
+        $err_buffer_ref, $buffer_size,    $select_timeout
+    );
     $out_callback = $options->{out_callback} || $self->get_out_callback();
     $err_callback = $options->{err_callback} || $self->get_err_callback();
 
@@ -158,6 +162,8 @@ sub run_command {
         $out_buffer_ref = \'';
         $err_buffer_ref = \'';
     }
+    $buffer_size    = $options->{buffer_size}    || $self->get_buffer_size();
+    $select_timeout = $options->{select_timeout} || $self->get_select_timeout();
 
     $self->_set_last_command( \@command );
     $logger->debug( "Running '", $self->get_last_command(), "'" );
@@ -167,14 +173,14 @@ sub run_command {
     my $select = IO::Select->new();
     $select->add( $out_fh, $err_fh );
 
-    while ( my @ready = $select->can_read( $self->get_select_timeout() ) ) {
+    while ( my @ready = $select->can_read($select_timeout) ) {
         if ( $self->get_input_buffer() ) {
             syswrite( $in_fh, $self->get_input_buffer() );
-            $self->clear_input_buffer();
+            $self->_clear_input_buffer();
         }
         foreach my $fh (@ready) {
             my $line;
-            my $bytes_read = sysread( $fh, $line, $self->get_buffer_size() );
+            my $bytes_read = sysread( $fh, $line, $buffer_size );
             if ( !defined($bytes_read) && !$!{ECONNRESET} ) {
                 $logger->error( "sysread failed: ", sub { Dumper(%!) } );
                 $logger->logdie( "error in running '", $self->get_last_command(), "': ", $! );
@@ -220,6 +226,21 @@ sub _set_last_command {
         unless ( ( ref($command_ref) ) eq 'ARRAY' );
 
     $self->{last_command} = join( ' ', @{$command_ref} );
+}
+
+sub _set_pid {
+    my $self  = shift;
+    my $value = shift;
+
+    if ( !defined($value) ) {
+        delete( $self->{pid} );
+    }
+    elsif ( $value !~ /^\d+$/ ) {
+        $logger->logdie('the parameter must be an integer');
+    }
+    else {
+        $self->{pid} = $value;
+    }
 }
 
 sub _win_open3 {
@@ -326,6 +347,11 @@ also provides a workaround for Microsoft Windows' IPC bad reputation.
 Only C<safe_open3> is exported on demand.
 
 =head2 safe_open3( $command, $arg1, ..., $argN )
+=======
+also provides a workaround for the bad reputation associated with Microsoft 
+Windows' IPC.
+
+=export_ok safe_open3( $command, $arg1, ..., $argN )
 
 Passes the command and arguments on to C<open3> and returns a list containing:
 
@@ -352,18 +378,29 @@ An L<IO::Handle> to STDERR for the process.
 As with C<open3>, it is the callers responsibility to C<waitpid> to
 ensure forked processes do not become zombies.
 
-This method works for both *nix and Microsoft Windows OS's.  On a Windows system,
-it will use sockets as described in L<http://www.perlmonks.org/index.pl?node_id=811150>.
+This method works for both *nix and Microsoft Windows OS's.  On a Windows 
+system, it will use sockets per 
+L<http://www.perlmonks.org/index.pl?node_id=811150>.
 
 =head1 ATTRIBUTES
 
 =head2 out_callback
-
-A subroutine to call for each chunk of text written to C<STDOUT>. This subroutine
-will be called with 2 arguments:
+=======
+The constructor creates a new Callback object and optionally sets global 
+callbacks for C<STDOUT> and C<STDERR> streams from commands that will get run by 
+this object (can be overridden per call to 
+L<run_command|/"run_command( $command, $arg1, ..., $argN, \%options )">).
+The currently available options are:
 
 =over 4
 
+=item out_callback
+
+	L<out_callback|/"set_out_callback( &subroutine )">
+
+=item err_callback
+
+<<<<<<< HEAD
 =item 1.
 
 A chunk of text written to the stream.
@@ -371,8 +408,16 @@ A chunk of text written to the stream.
 =item 2.
 
 The pid of the forked process.
+=======
+L<err_callback|/"set_err_callback( &subroutine )">
 
-=back
+=item buffer_output
+
+L<buffer_output|/"set_buffer_output( $boolean )">
+
+=item buffer_size
+
+L<buffer_size|/"set_buffer_size( $bytes )">
 
 =head2 err_callback
 
@@ -380,6 +425,16 @@ A subroutine to call for each chunk of text written to C<STDERR>. This subroutin
 will be called with the same 2 arguments as C<out_callback>.
 
 =head2 buffer_output
+=======
+=item select_timeout
+
+L<select_timeout|/"set_select_timeout( $seconds )">
+
+=back
+
+=attribute get_buffer_output()
+
+=attribute set_buffer_output( $boolean )
 
 A boolean value, if true, will buffer output and send to callback one line
 at a time (waits for C<\n>).  Otherwise, sends text in the same chunks returned
@@ -440,6 +495,12 @@ buffer_output
 select_timeout
 
 =back
+=======
+=attribute get_buffer_size()
+
+=attribute set_buffer_size( $bytes )
+
+The size of the read buffer (in bytes) supplied to C<sysread>.
 
 =head2 get_err_callback
 
@@ -469,7 +530,9 @@ Sets the L<out_callback|out_callback> attribute. Expects a code reference as par
 
 =head2 get_buffer_size
 
-Returns the contents of the attribute L<buffer_size|buffer_size>.
+A subroutine that will be called for each chunk of text written to C<STDERR>. 
+The subroutine will be called with the same 2 arguments as 
+L<out_callback|/"set_out_callback( &subroutine )">.
 
 =head2 set_buffer_size
 
@@ -477,11 +540,41 @@ Sets the contents of the attribute L<buffer_size|buffer_size>. Expects as parame
 
 =head2 get_pid
 
+The last command run by the L<run_command|/"run_command( $command, $arg1, ..., $argN, \%options )"> method.
+
 Returns the content of the L<pid|pid> attribute.
 
 =head2 _set_pid
 
 Sets the attribute L<pid|pid>. Expects an integer as parameter.
+
+A subroutine that will be called whenever a chunk of output is sent to STDOUT by the
+opened process. The subroutine will be called with 2 arguments:
+
+=over 4
+
+=item data
+
+A chunk of text written to the stream
+
+=item pid
+
+The pid of the forked process
+
+=back
+
+=attribute get_pid()
+
+Will return the pid of the currently running process.  This pid is set by 
+C<run_command> and will be cleared out when the C<run_command> completes.
+
+=attribute get_select_timeout()
+
+=attribute set_select_timeout( $seconds )
+
+The timeout, in seconds, provided to C<IO::Select>, by default 0 meaning no
+timeout which will cause the loop to block until output is ready on either
+C<STDOUT> or C<STDERR>.
 
 This is a "private" method and should be used internally only.
 
@@ -499,8 +592,11 @@ Will run the specified command with the supplied arguments by passing them on
 to L<safe_open3|/"safe_open3( $command, $arg1, ..., $argN )">.  Arguments can be embedded in the command string and 
 are thus optional.
 
-If the last argument to this method is a hash reference then it will be considered as the same allowed options used in the
-L<constructor|new> and will be used in preference to the values set in the constructor for this call.
+If the last argument to this method is a hashref (C<ref(@_[-1]) eq 'HASH'>), then
+it is treated as an options hash.  The supported allowed options are the same
+as the L<constructor|/"new( \%options )"> and will be used in preference to the values set by the  
+constructor or any of the setters.  These options will be used for this single
+call, and will not modify the C<Callback> object itself.
 
 Returns the exit code from the command.
 
