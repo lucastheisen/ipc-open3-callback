@@ -8,17 +8,20 @@ package IPC::Open3::Callback::Command;
 # ABSTRACT: A utility class that provides subroutines for building shell command strings.
 
 use Exporter qw(import);
-our @EXPORT_OK = qw(command batch_command mkdir_command pipe_command rm_command sed_command);
+our @EXPORT_OK = qw(batch_command command destination_options mkdir_command pipe_command rm_command sed_command write_command);
 
 sub batch_command {
     wrap(
         {},
         @_,
         sub {
-            my $options = shift;
             return @_;
         }
     );
+}
+
+sub destination_options {
+    return IPC::Open3::Callback::Command::DestinationOptions->new( @_ );
 }
 
 sub command {
@@ -26,7 +29,6 @@ sub command {
         {},
         @_,
         sub {
-            my $options = shift;
             return shift;
         }
     );
@@ -37,7 +39,6 @@ sub mkdir_command {
         {},
         @_,
         sub {
-            my $options = shift;
             return 'mkdir -p "' . join( '" "', @_ ) . '"';
         }
     );
@@ -48,7 +49,6 @@ sub pipe_command {
         { command_separator => '|' },
         @_,
         sub {
-            my $options = shift;
             return @_;
         }
     );
@@ -59,7 +59,6 @@ sub rm_command {
         {},
         @_,
         sub {
-            my $options = shift;
             return 'rm -rf "' . join( '" "', @_ ) . '"';
         }
     );
@@ -70,14 +69,19 @@ sub sed_command {
         {},
         @_,
         sub {
-            my $options = shift;
+            my @args = @_;
+            my $options = {};
+
+            if ( ref($args[$#args]) eq 'HASH' ) {
+                $options = pop(@args);
+            }
 
             my $command = 'sed';
             $command .= ' -i' if ( $options->{in_place} );
             if ( defined( $options->{temp_script_file} ) ) {
                 my $temp_script_file_name = $options->{temp_script_file}->filename();
-                print( { $options->{temp_script_file} } join( ' ', '', map {"$_;"} @_ ) )
-                    if ( scalar(@_) );
+                print( { $options->{temp_script_file} } join( ' ', '', map {"$_;"} @args ) )
+                    if ( scalar(@args) );
                 print(
                     { $options->{temp_script_file} } join( ' ',
                         '',
@@ -88,7 +92,7 @@ sub sed_command {
                 $command .= " -f $temp_script_file_name";
             }
             else {
-                $command .= join( ' ', '', map {"-e '$_'"} @_ ) if ( scalar(@_) );
+                $command .= join( ' ', '', map {"-e '$_'"} @args ) if ( scalar(@args) );
                 $command .= join( ' ',
                     '',
                     map {"-e 's/$_/$options->{replace_map}{$_}/g'"}
@@ -102,16 +106,39 @@ sub sed_command {
     );
 }
 
+sub write_command {
+    my @dd_args = (shift(@_));
+    my $options = pop;
+    my @lines = @_;
+
+    if ( ref($options) eq 'IPC::Open3::Callback::Command::DestinationOptions' ) {
+        push( @dd_args, $options );
+    }
+    else {
+        push( @lines, $options ) 
+    }
+
+    return 'printf "' . join( '\n', @lines ) . '\n"|' . wrap(
+        {},
+        @dd_args,
+        sub {
+            my $filename = shift;
+
+            return "dd of=$filename";
+        }
+    );
+}
+
 # Handles wrapping commands with possible ssh and command prefix
 sub wrap {
     my $wrap_options = shift;
     my $builder      = pop;
-    my $options      = pop;
     my @args         = @_;
-    my ( $ssh, $username, $hostname );
+    my ( $ssh, $username, $hostname, $pretty );
     my $command_prefix = '';
 
-    if ( ref($options) eq 'HASH' ) {
+    if ( ref($args[$#args]) eq 'IPC::Open3::Callback::Command::DestinationOptions' ) {
+        my $options = pop( @args );
         $ssh      = $options->{ssh} || 'ssh';
         $username = $options->{username};
         $hostname = $options->{hostname};
@@ -119,22 +146,18 @@ sub wrap {
             $command_prefix = $options->{command_prefix};
         }
     }
-    else {
-        push( @args, $options );
-        $options = {};
-    }
 
     my $destination_command = '';
     my $command_separator   = $wrap_options->{command_separator} || ';';
     my $first               = 1;
-    foreach my $command ( &$builder( $options, @args ) ) {
+    foreach my $command ( &$builder( @args ) ) {
         if ( defined($command) ) {
             if ($first) {
                 $first = 0;
             }
             else {
                 $destination_command .= $command_separator;
-                if ( $options->{pretty} ) {
+                if ( $pretty ) {
                     $destination_command .= "\n";
                 }
             }
@@ -149,15 +172,37 @@ sub wrap {
         return $destination_command;
     }
 
-    my $userAt =
-        defined( $options->{username} )
-        ? (
-        ( $ssh =~ /plink(?:\.exe)?$/ ) ? "-l $options->{username} " : "$options->{username}\@" )
+    my $userAt = $username
+        ? ( ( $ssh =~ /plink(?:\.exe)?$/ ) ? "-l $username " : "$username\@" )
         : '';
 
     $destination_command =~ s/\\/\\\\/g;
     $destination_command =~ s/"/\\"/g;
     return "$ssh $userAt" . ( $hostname || 'localhost' ) . " \"$destination_command\"";
+}
+
+package IPC::Open3::Callback::Command::DestinationOptions;
+
+use parent qw(Class::Accessor);
+__PACKAGE__->follow_best_practice;
+__PACKAGE__->mk_accessors(
+    qw(ssh username hostname command_prefix pretty) );
+
+sub new {
+    my ($class, @args) = @_;
+    return bless( {}, $class )->_init( @args );
+}
+
+sub _init {
+    my ($self, %options) = @_;
+
+    $self->{ssh} = $options{ssh} if ( defined( $options{ssh} ) );
+    $self->{username} = $options{username} if ( defined( $options{username} ) );
+    $self->{hostname} = $options{hostname} if ( defined( $options{hostname} ) );
+    $self->{command_prefix} = $options{command_prefix} if ( defined( $options{command_prefix} ) );
+    $self->{pretty} = $options{pretty} if ( defined( $options{pretty} ) );
+
+    return $self;
 }
 
 1;
@@ -220,12 +265,25 @@ point to I<shelling> out for commands locally as there is almost certainly a
 perl function/library capable of doing whatever you need in perl code. However,
 If you are designing a footprintless agent that will run commands on remote
 machines using existing tools (gnu/powershell/bash...) these utilities can be
-very helpful.  All functions in this module can take a C<\%destination_options>
+very helpful.  All functions in this module can take a C<destination_options>
 hash defining who/where/how to run the command.
 
 =head1 OPTIONS
 
-All commands can be supplied with C<\%destination_options>.  
+=func batch_command( $command1, $command2, ..., $commandN, [$destination_options] )
+
+This will join all the commands with a C<;> and apply the supplied 
+C<destination_options> to the result.
+
+=func command( $command, [$destination_options] )
+
+This wraps the supplied command with all the destination options.  If no 
+options are supplied, $command is returned.
+
+=func destination_options( %options ) 
+
+Returns a C<destination_options> object to be supplied to other commands.
+All commands can be supplied with C<destination_options>.  
 C<destination_options> control who/where/how to run the command.  The supported
 options are:
 
@@ -258,34 +316,24 @@ username is specified, the command will not be wrapped in C<ssh>
 
 =back
 
-=func command( $command, \%destination_options )
-
-This wraps the supplied command with all the destination options.  If no 
-options are supplied, $command is returned.
-
-=func batch_command( $command1, $command2, ..., $commandN, \%destination_options )
-
-This will join all the commands with a C<;> and apply the supplied 
-C<\%destination_options> to the result.
-
-=func mkdir_command( $path1, $path2, ..., $pathN, \%destination_options )
+=func mkdir_command( $path1, $path2, ..., $pathN, [$destination_options] )
 
 Results in C<mkdir -p $path1 $path2 ... $pathN> with the 
-C<\%destination_options> applied.
+C<destination_options> applied.
 
-=func pipe_command( $command1, $command2, ..., $commandN, \%destination_options )
+=func pipe_command( $command1, $command2, ..., $commandN, [$destination_options] )
 
 Identical to 
-L<batch_command|"batch_command( $command1, $command2, ..., $commandN, \%destination_options )">
+L<batch_command|"batch_command( $command1, $command2, ..., $commandN, [$destination_options] )">
 except uses C<\|> to separate the commands instead of C<;>.
 
-=head2 rm_command( $path1, $path2, ..., $pathN, \%destination_options )
+=func rm_command( $path1, $path2, ..., $pathN, [$destination_options] )
 
 Results in C<rm -rf $path1 $path2 ... $pathN> with the 
-C<\%destination_options> applied. This is a I<VERY> dangerous command and should
+C<destination_options> applied. This is a I<VERY> dangerous command and should
 be used with care.
 
-=func sed_command( $expression1, $expression2, ..., $expressionN, \%destination_options )
+=func sed_command( $expression1, $expression2, ..., $expressionN, [$destination_options] )
 
 Constructs a sed command
 
@@ -353,6 +401,10 @@ console that have protected information like passwords. If passwords are
 issued on the console, they might show up in the command history...
 
 =back
+
+=func write_command( $out_file, @lines, [$destination_options] )
+
+Writes the C<@lines> to C<$out_file> with the C<$destination_options> applied.
 
 =head1 SEE ALSO
 IPC::Open3::Callback
