@@ -118,11 +118,17 @@ sub write_command {
         push( @lines, $options ) 
     }
 
+    if ( ref($lines[$#lines]) eq 'HASH' ) {
+        # last of @lines is actually write options
+        push( @dd_args, pop( @lines ) );
+    }
+
     return 'printf "' . join( '\n', @lines ) . '\n"|' . wrap(
         {},
         @dd_args,
         sub {
             my $filename = shift;
+            my $options = shift;
 
             return "dd of=$filename";
         }
