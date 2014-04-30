@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 15;
+use Test::More tests => 18;
 
 BEGIN { use_ok('IPC::Open3::Callback::Command') }
 
@@ -59,7 +59,7 @@ is( batch_command(
     'crazy command'
 );
 is( write_command( 'skeorules.reasons', 'good looks', 'smarts', 'cool shoes, not really' ),
-    'printf "good looks\nsmarts\ncool shoes, not really\n"|dd of=skeorules.reasons',
+    'printf "good looks\nsmarts\ncool shoes, not really"|dd of=skeorules.reasons',
     'write command'
 );
 is( write_command( 'skeorules.reasons', 'good looks', 'smarts', 'cool shoes, not really', 
@@ -67,7 +67,33 @@ is( write_command( 'skeorules.reasons', 'good looks', 'smarts', 'cool shoes, not
             hostname => 'somewhere-out-there', 
             command_prefix => 'sudo -u over-the-rainbow '
         ) ),
-    'printf "good looks\\nsmarts\\ncool shoes, not really\\n"|ssh somewhere-out-there "sudo -u over-the-rainbow dd of=skeorules.reasons"',
+    'printf "good looks\\nsmarts\\ncool shoes, not really"|ssh somewhere-out-there "sudo -u over-the-rainbow dd of=skeorules.reasons"',
     'write command'
 );
-
+is( write_command( 'skeorules.reasons', 'good looks', 'smarts', 'cool shoes, not really', 
+        { mode => 700 },
+        destination_options( 
+            hostname => 'somewhere-out-there', 
+            command_prefix => 'sudo -u over-the-rainbow '
+        ) ),
+    'printf "good looks\\nsmarts\\ncool shoes, not really"|ssh somewhere-out-there "sudo -u over-the-rainbow dd of=skeorules.reasons;sudo -u over-the-rainbow chmod 700 skeorules.reasons"',
+    'write command'
+);
+is( write_command( 'skeorules.reasons', 'good looks', 'smarts', 'cool shoes, not really', 
+        { mode => 700, line_separator => '\r\n' },
+        destination_options( 
+            hostname => 'somewhere-out-there', 
+            command_prefix => 'sudo -u over-the-rainbow '
+        ) ),
+    'printf "good looks\\r\\nsmarts\\r\\ncool shoes, not really"|ssh somewhere-out-there "sudo -u over-the-rainbow dd of=skeorules.reasons;sudo -u over-the-rainbow chmod 700 skeorules.reasons"',
+    'write command'
+);
+is( write_command( 'skeorules.reasons', "good\\nlooks", 'smarts', 'cool shoes, not really', 
+        { mode => 700, line_separator => '\r\n' },
+        destination_options( 
+            hostname => 'somewhere-out-there', 
+            command_prefix => 'sudo -u over-the-rainbow '
+        ) ),
+    'printf "good\\nlooks\\r\\nsmarts\\r\\ncool shoes, not really"|ssh somewhere-out-there "sudo -u over-the-rainbow dd of=skeorules.reasons;sudo -u over-the-rainbow chmod 700 skeorules.reasons"',
+    'write command'
+);

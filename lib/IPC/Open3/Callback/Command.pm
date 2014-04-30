@@ -107,32 +107,31 @@ sub sed_command {
 }
 
 sub write_command {
-    my @dd_args = (shift(@_));
-    my $options = pop;
+    # ($filename, @lines, [\%write_options], [$destination_options])
+    my $filename = shift;
     my @lines = @_;
+    my $destination_options = pop( @lines ) if ( ref($lines[$#lines]) eq 'IPC::Open3::Callback::Command::DestinationOptions' );
+    my $write_options = pop( @lines ) if ( ref($lines[$#lines]) eq 'HASH' );
 
-    if ( ref($options) eq 'IPC::Open3::Callback::Command::DestinationOptions' ) {
-        push( @dd_args, $options );
-    }
-    else {
-        push( @lines, $options ) 
-    }
-
-    if ( ref($lines[$#lines]) eq 'HASH' ) {
-        # last of @lines is actually write options
-        push( @dd_args, pop( @lines ) );
-    }
-
-    return 'printf "' . join( '\n', @lines ) . '\n"|' . wrap(
-        {},
-        @dd_args,
-        sub {
-            my $filename = shift;
-            my $options = shift;
-
-            return "dd of=$filename";
+    my $remote_command = "dd of=$filename";
+    if ( defined( $write_options ) && defined( $write_options->{mode} ) ) {
+        if ( defined( $destination_options ) ) {
+            $remote_command = batch_command( $remote_command, 
+                "chmod $write_options->{mode} $filename",
+                $destination_options );
         }
-    );
+        elsif ( defined( $destination_options ) ) {
+            $remote_command = batch_command( $remote_command, 
+                "chmod $write_options->{mode} $filename" );
+        }
+    }
+    elsif ( defined( $destination_options ) ) {
+        $remote_command = command( $remote_command, $destination_options );
+    }
+
+    my $line_separator = ( defined( $write_options ) && defined( $write_options->{line_separator} ) ) 
+        ? $write_options->{line_separator} : '\n';
+    return pipe_command( 'printf "' . join( $line_separator, @lines ) . '"', $remote_command );
 }
 
 # Handles wrapping commands with possible ssh and command prefix
