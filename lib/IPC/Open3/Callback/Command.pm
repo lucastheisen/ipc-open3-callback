@@ -150,6 +150,7 @@ sub wrap {
         if ( defined( $options->{command_prefix} ) ) {
             $command_prefix = $options->{command_prefix};
         }
+        $pretty   = $options->{pretty};
     }
 
     my $destination_command = '';
