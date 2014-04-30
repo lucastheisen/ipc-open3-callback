@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 18;
+use Test::More tests => 20;
 
 BEGIN { use_ok('IPC::Open3::Callback::Command') }
 
@@ -68,7 +68,7 @@ is( write_command( 'skeorules.reasons', 'good looks', 'smarts', 'cool shoes, not
             command_prefix => 'sudo -u over-the-rainbow '
         ) ),
     'printf "good looks\\nsmarts\\ncool shoes, not really"|ssh somewhere-out-there "sudo -u over-the-rainbow dd of=skeorules.reasons"',
-    'write command'
+    'write command with destination_options'
 );
 is( write_command( 'skeorules.reasons', 'good looks', 'smarts', 'cool shoes, not really', 
         { mode => 700 },
@@ -77,7 +77,7 @@ is( write_command( 'skeorules.reasons', 'good looks', 'smarts', 'cool shoes, not
             command_prefix => 'sudo -u over-the-rainbow '
         ) ),
     'printf "good looks\\nsmarts\\ncool shoes, not really"|ssh somewhere-out-there "sudo -u over-the-rainbow dd of=skeorules.reasons;sudo -u over-the-rainbow chmod 700 skeorules.reasons"',
-    'write command'
+    'write command with mode'
 );
 is( write_command( 'skeorules.reasons', 'good looks', 'smarts', 'cool shoes, not really', 
         { mode => 700, line_separator => '\r\n' },
@@ -86,7 +86,7 @@ is( write_command( 'skeorules.reasons', 'good looks', 'smarts', 'cool shoes, not
             command_prefix => 'sudo -u over-the-rainbow '
         ) ),
     'printf "good looks\\r\\nsmarts\\r\\ncool shoes, not really"|ssh somewhere-out-there "sudo -u over-the-rainbow dd of=skeorules.reasons;sudo -u over-the-rainbow chmod 700 skeorules.reasons"',
-    'write command'
+    'write command with line_separator'
 );
 is( write_command( 'skeorules.reasons', "good\\nlooks", 'smarts', 'cool shoes, not really', 
         { mode => 700, line_separator => '\r\n' },
@@ -95,5 +95,11 @@ is( write_command( 'skeorules.reasons', "good\\nlooks", 'smarts', 'cool shoes, n
             command_prefix => 'sudo -u over-the-rainbow '
         ) ),
     'printf "good\\nlooks\\r\\nsmarts\\r\\ncool shoes, not really"|ssh somewhere-out-there "sudo -u over-the-rainbow dd of=skeorules.reasons;sudo -u over-the-rainbow chmod 700 skeorules.reasons"',
-    'write command'
+    'write command with embedded newline'
 );
+is( command( "find . -exec cat {} \\;" ),
+    'find . -exec cat {} \;',
+    'wrap doesn\'t remove ;' );
+is( batch_command( "echo abc;", "echo def;" ),
+    'echo abc;echo def',
+    'wrap does remove ;' );

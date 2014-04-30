@@ -166,7 +166,7 @@ sub wrap {
                     $destination_command .= "\n";
                 }
             }
-            $command =~ s/^(.*?);$/$1/;
+            $command =~ s/^(.*?[^\\]);$/$1/;
             $destination_command .= "$command_prefix$command";
         }
     }
