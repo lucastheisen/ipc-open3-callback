@@ -119,7 +119,7 @@ sub _destroy_child {
     waitpid( $self->get_pid(), 0 ) if ( $self->get_pid() );
     my $exit_code = $? >> 8;
 
-    $logger->debug( "exited '", $self->get_last_command(), "' with code ", $exit_code );
+    $logger->debug( "exited '", $self->get_last_command() || '', "' with code ", $exit_code );
     $self->_set_pid();
     return $exit_code;
 }
