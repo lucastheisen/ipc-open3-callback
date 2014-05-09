@@ -54,6 +54,14 @@ sub pipe_command {
     );
 }
 
+sub _quote_command {
+    my ($command) = @_;
+    $command =~ s/\\/\\\\/g;
+    $command =~ s/`/\\`/g; # for `command`
+    $command =~ s/"/\\"/g;
+    return "\"$command\"";
+}
+
 sub rm_command {
     wrap(
         {},
@@ -110,8 +118,9 @@ sub write_command {
     # ($filename, @lines, [\%write_options], [$command_options])
     my $filename = shift;
     my @lines = @_;
-    my $command_options = pop( @lines ) if ( ref($lines[$#lines]) eq 'IPC::Open3::Callback::Command::CommandOptions' );
-    my $write_options = pop( @lines ) if ( ref($lines[$#lines]) eq 'HASH' );
+    my ($command_options, $write_options);
+    $command_options = pop( @lines ) if ( ref($lines[$#lines]) eq 'IPC::Open3::Callback::Command::CommandOptions' );
+    $write_options = pop( @lines ) if ( ref($lines[$#lines]) eq 'HASH' );
 
     my $remote_command = "dd of=$filename";
     if ( defined( $write_options ) && defined( $write_options->{mode} ) ) {
@@ -183,14 +192,6 @@ sub wrap {
 
     $destination_command = _quote_command( $destination_command );
     return "$ssh $userAt" . ( $hostname || 'localhost' ) . " $destination_command";
-}
-
-sub _quote_command {
-    my ($command) = @_;
-    $command =~ s/\\/\\\\/g;
-    $command =~ s/`/\\`/g; # for `command`
-    $command =~ s/"/\\"/g;
-    return "\"$command\"";
 }
 
 package IPC::Open3::Callback::Command::CommandOptions;

@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 24;
+use Test::More tests => 23;
 
 BEGIN { use_ok('IPC::Open3::Callback::Command') }
 
@@ -108,9 +108,5 @@ ok( command_options( hostname=>'localhost' )->is_local(),
     'localhost is local' );
 ok( command_options( hostname=>'127.0.0.1' )->is_local(),
     '127.0.0.1 is local' );
-my $hostname = `hostname`;
-chomp( $hostname );
-ok( command_options( hostname=>$hostname )->is_local(),
-    '`hostname` is local' );
 ok( !command_options( hostname=>'google.com' )->is_local(),
     'google.com is not local (sorry google, force install if you decide to use this module)' );
