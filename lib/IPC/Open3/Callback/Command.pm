@@ -365,13 +365,11 @@ The ssh command to use, defaults to C<ssh>.  You can use this to specify other
 commands like C<plink> for windows or an implementation of C<ssh> that is not
 in your path.
 
-=item command_prefix
+=item sudo_username
 
-As it sounds, this is a prefix to your command.  Mainly useful for using 
-C<sudo>. This prefix is added like this C<$command_prefix$command> so be sure
-to put a space at the end of your prefix unless you want to modify the name
-of the command itself.  For example, 
-C<$command_prefix = 'sudo -u priveleged_user ';>.
+Prefixes your command thusly: C<sudo -u $sudo_username $command>.  If combined
+with a remote hostname, the C<sudo> will be executed on the remote system.  For
+example: C<ssh $hostname "sudo -u $sudo_user \"$command\"">.
 
 =item username
 
