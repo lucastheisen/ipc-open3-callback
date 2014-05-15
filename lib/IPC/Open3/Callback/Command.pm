@@ -8,7 +8,9 @@ package IPC::Open3::Callback::Command;
 # ABSTRACT: A utility class that provides subroutines for building shell command strings.
 
 use Exporter qw(import);
-our @EXPORT_OK = qw(batch_command command command_options mkdir_command pipe_command rm_command sed_command write_command);
+our @EXPORT_OK = qw(batch_command command command_options cp_command mkdir_command pipe_command rm_command sed_command write_command);
+
+use File::Spec;
 
 sub batch_command {
     wrap(
@@ -32,6 +34,61 @@ sub command {
             return shift;
         }
     );
+}
+
+sub cp_command {
+    my ($source_path, $source_command_options, $destination_path, $destination_command_options, %cp_options);
+    $source_path = shift;
+    $source_command_options = shift if ( ref($_[0]) eq 'IPC::Open3::Callback::Command::CommandOptions' );
+    $destination_path = shift;
+    $destination_command_options = shift if ( ref($_[0]) eq 'IPC::Open3::Callback::Command::CommandOptions' );
+    %cp_options = @_;
+
+    my $source_command;
+    my $destination_command;
+    if ( $cp_options{file} ) {
+        # is a file, so use cat | dd
+        if ( $cp_options{compress} ) {
+            $source_command = "gzip -c $source_path";
+            $destination_command = pipe_command( "gunzip", 
+                "dd of=$destination_path" );
+        }
+        else {
+            $source_command = "cat $source_path";
+            $destination_command = "dd of=$destination_path";
+        }
+    }
+    else {
+        # is a directory, so use tar or unzip
+        if ( $cp_options{archive} && $cp_options{archive} eq 'zip' ) {
+            my $temp_zip = File::Spec->catfile( $destination_path, 
+                $cp_options{unzip_temp_file} || "temp_cp_command.zip" );
+            $source_command = "bash -c \"cd $source_path;zip -qr - .\"";
+            $destination_command = batch_command( "dd of=$temp_zip",
+                "unzip -qod $destination_path $temp_zip",
+                rm_command( $temp_zip ) );
+        }
+        else {
+            # default, use tar
+            if ( $cp_options{compress} ) {
+                $source_command = "tar cz -C $source_path .";
+                $destination_command = "tar xz -C $destination_path";
+            }
+            else {
+                $source_command = "tar c -C $source_path .";
+                $destination_command = "tar x -C $destination_path";
+            }
+        }
+    }
+
+    if ( $source_command_options ) {
+        $source_command = command( $source_command, $source_command_options );
+    }
+    if ( $destination_command_options ) {
+        $destination_command = command( $destination_command, $destination_command_options );
+    }
+    
+    return pipe_command( $source_command, $destination_command );
 }
 
 sub mkdir_command {
@@ -381,6 +438,34 @@ C<plink -l $username $hostname>.
 
 The hostname/IP of the server to run this command on. If localhost, and no 
 username is specified, the command will not be wrapped in C<ssh>
+
+=back
+
+=func cp_command( $source_path, [$source_command_options], $destination_path, [$destination_command_options], %cp_options )
+
+This generates a command for copying files or directories from a source to
+a destination.  Both source and destination have optional C<command_options>, 
+and the C<cp_command> itself has the following options:
+
+=over 4
+
+=item archive
+
+If specified and set to 'zip', then zip will be used to archive the source
+before sending it to the destination.  Otherwise, tar will be used.  Note,
+that if C<file =E<gt> 1> then this is ignored.
+
+=item compress
+
+If supplied and true, then the source data will be compressed before sending
+to the destination where it will be uncompressed before writing out.  Note,
+that if you use C<archive =E<gt> 'zip'> then this is ignored as zip implies 
+compression.
+
+=item file
+
+If supplied and true, then this is a file copy, otherwise it is a directory 
+copy.
 
 =back
 
