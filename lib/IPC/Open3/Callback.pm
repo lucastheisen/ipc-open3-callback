@@ -473,3 +473,5 @@ IPC::Open3::Callback::Command
 IPC::Open3::Callback::CommandRunner
 https://github.com/lucastheisen/ipc-open3-callback
 http://stackoverflow.com/q/16675950/516433
+
+=for Pod::Coverage send_input
