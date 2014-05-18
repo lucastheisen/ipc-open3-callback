@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 34;
+use Test::More tests => 31;
 
 BEGIN { use_ok('IPC::Open3::Callback::Command') }
 
@@ -140,9 +140,3 @@ is( cp_command( "abc", command_options(hostname=>'foo',sudo_username=>'foo_user'
     "def", command_options(hostname=>'bar',sudo_username=>'bar_user'), archive => 'zip' ),
     'ssh foo "sudo -u foo_user bash -c \"bash -c \\\\\"cd abc;zip -qr - .\\\\\"\""|ssh bar "sudo -u bar_user bash -c \"dd of=def/temp_cp_command.zip;unzip -qod def def/temp_cp_command.zip;rm -rf \\\\\"def/temp_cp_command.zip\\\\\"\""',
     'directory unzip cp_command simple' );
-ok( command_options( hostname=>'localhost' )->is_local(),
-    'localhost is local' );
-ok( command_options( hostname=>'127.0.0.1' )->is_local(),
-    '127.0.0.1 is local' );
-ok( !command_options( hostname=>'google.com' )->is_local(),
-    'google.com is not local (sorry google, force install if you decide to use this module)' );

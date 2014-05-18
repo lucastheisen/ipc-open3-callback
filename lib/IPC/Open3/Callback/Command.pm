@@ -256,9 +256,7 @@ package IPC::Open3::Callback::Command::CommandOptions;
 use parent qw(Class::Accessor);
 __PACKAGE__->follow_best_practice;
 __PACKAGE__->mk_accessors(
-    qw(always_ssh hostname pretty ssh sudo_username username) );
-
-use Socket qw(getaddrinfo getnameinfo);
+    qw(hostname pretty ssh sudo_username username) );
 
 sub new {
     my ($class, @args) = @_;
@@ -268,7 +266,6 @@ sub new {
 sub _init {
     my ($self, %options) = @_;
 
-    $self->{always_ssh} = $options{always_ssh};
     $self->{hostname} = $options{hostname} if ( defined( $options{hostname} ) );
     $self->{ssh} = $options{ssh} if ( defined( $options{ssh} ) );
     $self->{username} = $options{username} if ( defined( $options{username} ) );
@@ -276,53 +273,6 @@ sub _init {
     $self->{pretty} = $options{pretty} if ( defined( $options{pretty} ) );
 
     return $self;
-}
-
-sub set_hostname {
-    my ($self, $hostname) = @_;
-    $self->{hostname} = $hostname;
-    delete( $self->{cached_hostname} );
-    delete( $self->{cached_local} );
-}
-
-sub get_hostname {
-    my ($self) = @_;
-    
-    if ( !defined( $self->{cached_hostname} ) ) {
-        if ( $self->{always_ssh} || ! $self->is_local() ) {
-            $self->{cached_hostname} = $self->{hostname};
-        }
-        else {
-            $self->{cached_hostname} = undef;
-        }
-    }
-    
-    return $self->{cached_hostname}
-}
-
-sub is_local {
-    my ($self) = @_;
-
-    if ( ! defined( $self->{cached_local} ) ) {
-        if ( ! $self->{hostname} ) {
-            $self->{cached_local} = 1;
-        }
-        else {
-            my ($local_hostname, $resolved_hostname, $addrinfo, $err);
-
-            ($local_hostname) = `hostname --fqdn` =~ /^(\S+)/;
-            ($err, $addrinfo) = getaddrinfo( $self->{hostname} );
-            if ( ! $err ) {
-                ($err, $resolved_hostname) = getnameinfo( $addrinfo->{addr} ) if ( ! $err );
-            }
-
-            if ( ! $err ) {
-                $self->{cached_local} = $err ? 0 : lc($local_hostname) eq lc($resolved_hostname);
-            }
-        }
-    }
-    
-    return $self->{cached_local};
 }
 
 1;
@@ -410,11 +360,6 @@ C<command_options> control who/where/how to run the command.  The supported
 options are:
 
 =over 4
-
-=item always_ssh
-
-If true, the command will always be wrapped by an ssh command even if the 
-hostname equates to localhost.
 
 =item ssh
 
