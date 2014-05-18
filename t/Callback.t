@@ -1,5 +1,11 @@
 use strict;
 use warnings;
+
+eval {
+    require Log::Log4perl;
+    Log::Log4perl->easy_init( $Log::Log4perl::ERROR );
+};
+
 use Test::More tests => 16;
 use IPC::Open3::Callback qw(safe_open3);
 
