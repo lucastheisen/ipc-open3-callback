@@ -500,6 +500,8 @@ issued on the console, they might show up in the command history...
 
 =back
 
+=for Pod::Coverage wrap
+
 =func write_command( $out_file, @lines, [$command_options] )
 
 Writes the C<@lines> to C<$out_file> with the C<$command_options> applied.
