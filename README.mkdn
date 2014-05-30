@@ -149,6 +149,11 @@ The subroutine will be called with the same 2 arguments as
 The last command run by the 
 [run\_command](#run_command-command-arg1-argn-options) method.
 
+## get\_last\_exit\_code()
+
+The exit code of the last command run by the 
+[run\_command](#run_command-command-arg1-argn-options) method.
+
 ## get\_out\_callback()
 
 ## set\_out\_callback( &subroutine )

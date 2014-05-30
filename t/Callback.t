@@ -6,16 +6,16 @@ eval {
     Log::Log4perl->easy_init( $Log::Log4perl::ERROR );
 };
 
-use Test::More tests => 16;
+use Test::More tests => 18;
 use IPC::Open3::Callback qw(safe_open3);
 
 BEGIN { use_ok('IPC::Open3::Callback') }
 
 my @methods = (
-    'new',               'get_err_callback', 'set_err_callback', 'get_last_command',
-    '_set_last_command', 'get_out_callback', 'set_out_callback', 'get_buffer_size',
-    'set_buffer_size',   'get_pid',          '_set_pid',         'get_input_buffer',
-    'run_command'
+    'new',               'get_err_callback',   'set_err_callback',   'get_last_command',
+    '_set_last_command', 'get_out_callback',   'set_out_callback',   'get_buffer_size',
+    'set_buffer_size',   'get_pid',            '_set_pid',           'get_input_buffer',
+    'run_command',       'get_last_exit_code', '_set_last_exit_code', 
 );
 
 my $echo              = 'Hello World';
@@ -99,3 +99,17 @@ like( $buffer, $echo_result_regex, "safe_open3 read out" );
 waitpid( $pid, 0 );
 my $exit_code = $? >> 8;
 ok( !$exit_code, "safe_open3 exited $exit_code" );
+
+$runner = IPC::Open3::Callback->new();
+my @lines = ();
+$runner->run_command(
+    "echo \"Hello\nWorld\n\"",
+    {   
+        buffer_output => 1,
+        out_callback => sub {
+            push( @lines, shift );
+        }
+    }
+);
+is( scalar(@lines), 3, '3 lines from echo' );
+is_deeply( \@lines, ['Hello','World',''], '3 lines from echo match' );
