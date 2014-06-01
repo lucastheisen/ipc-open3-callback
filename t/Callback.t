@@ -4,12 +4,22 @@ use warnings;
 eval {
     require Log::Log4perl;
     Log::Log4perl->easy_init( $Log::Log4perl::ERROR );
+    $Log::Log4perl::ERROR if ( 0 ); # prevent used only once warning
 };
+if ( $@ ) { 
+    require IPC::Open3::Callback::Logger;
+    IPC::Open3::Callback::Logger->set_level( 'off' );
+}
 
-use Test::More tests => 18;
-use IPC::Open3::Callback qw(safe_open3);
+use Test::More tests => 20;
 
 BEGIN { use_ok('IPC::Open3::Callback') }
+
+use Data::Dumper;
+use File::Basename;
+use File::Spec;
+use File::Temp;
+use IPC::Open3::Callback qw(safe_open3);
 
 my @methods = (
     'new',               'get_err_callback',   'set_err_callback',   'get_last_command',
@@ -18,21 +28,26 @@ my @methods = (
     'run_command',       'get_last_exit_code', '_set_last_exit_code', 
 );
 
+my $test_dir = dirname( File::Spec->rel2abs( $0 ) );
 my $echo              = 'Hello World';
 my $echo_result_regex = qr/^$echo[\r\n]?[\r\n]?$/;
 my $buffer            = '';
 my $err_buffer        = '';
 my $runner;
+my $command;
+my $expected;
+my $temp_file;
+my $file_handle;
 
 ok( $runner = IPC::Open3::Callback->new(
-        {   out_callback => sub {
-                $buffer .= shift;
-            },
-            err_callback => sub {
-                $err_buffer .= shift;
-                }
+    {   
+        out_callback => sub {
+            $buffer .= shift;
+        },
+        err_callback => sub {
+            $err_buffer .= shift;
         }
-    ),
+    } ),
     'can get an instance'
 );
 
@@ -100,10 +115,11 @@ waitpid( $pid, 0 );
 my $exit_code = $? >> 8;
 ok( !$exit_code, "safe_open3 exited $exit_code" );
 
+my $three_line_file_path = File::Spec->catfile( $test_dir, 'three_line_file.txt' );
+$command = ( ( $^O =~ /MSWin32/ ) ? 'type ' : 'cat ' ) . $three_line_file_path;
 $runner = IPC::Open3::Callback->new();
 my @lines = ();
-$runner->run_command(
-    "echo \"Hello\nWorld\n\"",
+$runner->run_command( $command,
     {   
         buffer_output => 1,
         out_callback => sub {
@@ -111,5 +127,43 @@ $runner->run_command(
         }
     }
 );
-is( scalar(@lines), 3, '3 lines from echo' );
-is_deeply( \@lines, ['Hello','World',''], '3 lines from echo match' );
+is( scalar(@lines), 3, 'buffer_output number of calls' );
+is_deeply( \@lines, ['three','line','file'], 'buffer_output match' );
+
+$temp_file = File::Temp->new();
+open( $file_handle, '>', $temp_file );
+$runner = IPC::Open3::Callback->new();
+$command = ( ( $^O =~ /MSWin32/ ) ? 'type ' : 'cat ' ) . $three_line_file_path;
+$runner->run_command( $command,
+    {   
+        out_handle => $file_handle
+    }
+);
+close( $file_handle );
+is( 
+    do { local( @ARGV, $/ ) = $temp_file; <> },
+    do { local( @ARGV, $/ ) = $three_line_file_path; <> },
+    'piped out handle' );
+
+open( my $three_line_file, '<', $three_line_file_path );
+if ( $^O =~ /MSWin32/ ) {
+    $command = 'more';
+    $expected = "three\r\nline\r\nfile\r\n";
+} 
+else {
+    $command = 'cat';
+    $expected = "three\nline\nfile\n";
+}
+$runner = IPC::Open3::Callback->new();
+$buffer = '';
+$runner->run_command( $command,
+    {   
+        in_handle => $three_line_file,
+        out_callback => sub {
+            $buffer .= shift;
+        }
+    }
+);
+is( $buffer, $expected, 'piped in handle' );
+close( $three_line_file );
+

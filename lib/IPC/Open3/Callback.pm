@@ -28,8 +28,8 @@ eval {
     $logger = Log::Log4perl->get_logger('IPC::Open3::Callback');
 };
 if ($@) {
-    require IPC::Open3::Callback::NullLogger;
-    $logger = IPC::Open3::Callback::NullLogger->new();
+    require IPC::Open3::Callback::Logger;
+    $logger = IPC::Open3::Callback::Logger->get_logger();
 }
 
 sub new {
@@ -111,10 +111,25 @@ sub _init {
 }
 
 sub _nix_open3 {
-    my @command = @_;
+    my ($in_read, $out_write, $err_write, @command) = @_;
+    my ($in_write, $out_read, $err_read);
 
-    my ( $in_fh, $out_fh, $err_fh ) = ( gensym(), gensym(), gensym() );
-    return ( open3( $in_fh, $out_fh, $err_fh, @command ), $in_fh, $out_fh, $err_fh );
+    if ( !$in_read ) {
+        $in_read = gensym();
+        $in_write = $in_read;
+    }
+    if ( !$out_write ) {
+        $out_read = gensym();
+        $out_write = $out_read;
+    }
+    if ( !$err_write ) {
+        $err_read = gensym();
+        $err_write = $err_read;
+    }
+   
+    return ( 
+        open3( $in_read, $out_write, $err_write, @command ), 
+        $in_write, $out_read, $err_read );
 }
 
 sub run_command {
@@ -142,12 +157,13 @@ sub run_command {
 
     $self->_set_last_command( \@command );
     $logger->debug( "Running '", $self->get_last_command(), "'" );
-    my ( $pid, $in_fh, $out_fh, $err_fh ) = safe_open3(@command);
+    my ( $pid, $in_fh, $out_fh, $err_fh ) = safe_open3_with(
+        $options->{in_handle}, $options->{out_handle}, $options->{err_handle}, 
+        @command);
     $self->_set_pid($pid);
 
     my $select = IO::Select->new();
     $select->add( $out_fh, $err_fh );
-
     while ( my @ready = $select->can_read($select_timeout) ) {
         if ( $self->get_input_buffer() ) {
             syswrite( $in_fh, $self->get_input_buffer() );
@@ -181,11 +197,24 @@ sub run_command {
     # flush buffers
     $self->_write_to_callback( $out_callback, '', $out_buffer_ref, 1 );
     $self->_write_to_callback( $err_callback, '', $err_buffer_ref, 1 );
+
     return $self->_destroy_child();
 }
 
 sub safe_open3 {
-    return ( $^O =~ /MSWin32/ ) ? _win_open3(@_) : _nix_open3(@_);
+    return safe_open3_with( undef, undef, undef, @_ );
+}
+
+sub safe_open3_with {
+    my ($in_handle, $out_handle, $err_handle, @command) = @_;
+    
+    my @args = (
+        $in_handle ? '<&' . fileno( $in_handle ) : undef,
+        $out_handle ? '>&' . fileno( $out_handle ) : undef,
+        $err_handle ? '>&' . fileno( $err_handle ) : undef,
+        @command
+    );
+    return ( $^O =~ /MSWin32/ ) ? _win_open3(@args) : _nix_open3(@args);
 }
 
 sub send_input {
@@ -222,19 +251,27 @@ sub _set_pid {
 }
 
 sub _win_open3 {
-    my (@command) = @_;
+    my ($in_read, $out_write, $err_write, @command) = @_;
 
-    my ( $in_read,  $in_write )  = _win_pipe();
-    my ( $out_read, $out_write ) = _win_pipe();
-    my ( $err_read, $err_write ) = _win_pipe();
+    my ($in_pipe_read, $in_pipe_write,
+        $out_pipe_read, $out_pipe_write, 
+        $err_pipe_read, $err_pipe_write);
+    if ( !$in_read ) {
+        ($in_pipe_read, $in_pipe_write) = _win_pipe();
+        $in_read = '>&' . fileno( $in_pipe_read );
+    }
+    if ( !$out_write ) {
+        ($out_pipe_read, $out_pipe_write) = _win_pipe();
+        $out_write = '<&' . fileno( $out_pipe_write );
+    }
+    if ( !$err_write ) {
+        ($err_pipe_read, $err_pipe_write) = _win_pipe();
+        $err_write = '<&' . fileno( $err_pipe_write );
+    }
 
-    my $pid = open3(
-        '>&' . fileno($in_read),
-        '<&' . fileno($out_write),
-        '<&' . fileno($err_write), @command
-    );
+    my $pid = open3( $in_read, $out_write, $err_write, @command );
 
-    return ( $pid, $in_write, $out_read, $err_read );
+    return ( $pid, $in_pipe_write, $out_pipe_read, $err_pipe_read );
 }
 
 sub _win_pipe {
@@ -347,6 +384,17 @@ This method works for both *nix and Microsoft Windows OS's.  On a Windows
 system, it will use sockets per 
 L<http://www.perlmonks.org/index.pl?node_id=811150>.
 
+=export_ok safe_open3_with( $in_handle, $out_handle, $err_handle, $command, $arg1, ..., $argN )
+
+The same as L<safe_open3|/"safe_open3( $command, $arg1, ..., $argN )"> except
+that you can specify the handles to be used instead of having C<safe_open3>
+generate them.  Each handle can be C<undef>.  In fact, C<safe_open3> just
+calls C<safe_open3_with(undef, undef, undef, @command)>.  The return values
+are the same except that C<undef> will be returned for each handle 
+corresponding to the same stream as a supplied handle.  For example, if you
+specify an C<$out_handle> then C<undef> will be returned for the C<STDOUT>
+handle.
+
 =constructor new( \%options )
 
 The constructor creates a new Callback object and optionally sets global 
@@ -453,7 +501,28 @@ If the last argument to this method is a hashref (C<ref(@_[-1]) eq 'HASH'>), the
 it is treated as an options hash.  The supported allowed options are the same
 as the L<constructor|/"new( \%options )"> and will be used in preference to the values set by the  
 constructor or any of the setters.  These options will be used for this single
-call, and will not modify the C<Callback> object itself.
+call, and will not modify the C<Callback> object itself.  C<run_command> supports
+three additional options not supported by the constructor.  They are:
+
+=over 4
+
+=item in_handle 
+
+An C<IO::Handle> from which C<STDIN> will be read.
+
+=item out_handle
+
+An C<IO::Handle> to which C<STDOUT> will be written.
+
+=item err_handle
+
+An C<IO::Handle> to which C<STDERR> will be written.
+
+=back
+
+These handle options can be mixed with regular options and if multiple are
+specified on the same stream, the handle version will be used instead of the
+callback.
 
 Returns the exit code from the command.
 
