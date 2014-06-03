@@ -526,12 +526,11 @@ issued on the console, they might show up in the command history...
 
 =back
 
-
 =func write_command( $filename, @lines, [\%write_options], [$command_options])
 
 Will write C<@lines> to C<$filename>.  The supported write options are:
 
-=over4
+=over 4
 
 =item mode
 
