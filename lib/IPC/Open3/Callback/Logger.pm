@@ -100,6 +100,23 @@ __END__
 
 This provides a very basic logger for when Log4perl is not available.
 
+=method get_logger()
+
+Returns the logger instance.
+
+=method set_level( $level )
+
+Sets the log level to one of:
+
+  all
+  trace
+  debug
+  info
+  warn
+  error
+  fatal
+  off
+
 =for Pod::Coverage new AUTOLOAD
 
 =head1 SEE ALSO
