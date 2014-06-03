@@ -14,11 +14,11 @@ version 1.10
             my $data = shift;
             my $pid = shift;
 
-          print( "$pid STDOUT: $data\n" );
-      },
-      err_callback => sub {
-          my $data = shift;
-          my $pid = shift;
+            print( "$pid STDOUT: $data\n" );
+        },
+        err_callback => sub {
+            my $data = shift;
+            my $pid = shift;
 
             print( "$pid STDERR: $data\n" );
         } } );
@@ -88,11 +88,11 @@ ensure forked processes do not become zombies.
 
 This method works for both \*nix and Microsoft Windows OS's.  On a Windows 
 system, it will use sockets per 
-[http://www.perlmonks.org/index.pl?node_id=811150](http://www.perlmonks.org/index.pl?node_id=811150).
+[http://www.perlmonks.org/index.pl?node\_id=811150](http://www.perlmonks.org/index.pl?node_id=811150).
 
 ## safe\_open3\_with( $in\_handle, $out\_handle, $err\_handle, $command, $arg1, ..., $argN )
 
-The same as [safe_open3](#safe_open3-command-arg1-argn) except
+The same as [safe\_open3](#safe_open3-command-arg1-argn) except
 that you can specify the handles to be used instead of having `safe_open3`
 generate them.  Each handle can be `undef`.  In fact, `safe_open3` just
 calls `safe_open3_with(undef, undef, undef, @command)`.  The return values
@@ -108,28 +108,28 @@ handle.
 The constructor creates a new Callback object and optionally sets global 
 callbacks for `STDOUT` and `STDERR` streams from commands that will get run by 
 this object (can be overridden per call to 
-[run_command](#run_command-command-arg1-argn-options)).
+[run\_command](#run_command-command-arg1-argn-options)).
 The currently available options are:
 
 - out\_callback
 
-    [out_callback](#set_out_callback-subroutine)
+    [out\_callback](#set_out_callback-subroutine)
 
 - err\_callback
 
-    [err_callback](#set_err_callback-subroutine)
+    [err\_callback](#set_err_callback-subroutine)
 
 - buffer\_output
 
-    [buffer_output](#set_buffer_output-boolean)
+    [buffer\_output](#set_buffer_output-boolean)
 
 - buffer\_size
 
-    [buffer_size](#set_buffer_size-bytes)
+    [buffer\_size](#set_buffer_size-bytes)
 
 - select\_timeout
 
-    [select_timeout](#set_select_timeout-seconds)
+    [select\_timeout](#set_select_timeout-seconds)
 
 # ATTRIBUTES
 
@@ -153,17 +153,17 @@ The size of the read buffer (in bytes) supplied to `sysread`.
 
 A subroutine that will be called for each chunk of text written to `STDERR`. 
 The subroutine will be called with the same 2 arguments as 
-[out_callback](#set_out_callback-subroutine).
+[out\_callback](#set_out_callback-subroutine).
 
 ## get\_last\_command()
 
 The last command run by the 
-[run_command](#run_command-command-arg1-argn-options) method.
+[run\_command](#run_command-command-arg1-argn-options) method.
 
 ## get\_last\_exit\_code()
 
 The exit code of the last command run by the 
-[run_command](#run_command-command-arg1-argn-options) method.
+[run\_command](#run_command-command-arg1-argn-options) method.
 
 ## get\_out\_callback()
 
@@ -198,7 +198,7 @@ timeout which will cause the loop to block until output is ready on either
 ## run\_command( $command, $arg1, ..., $argN, \\%options )
 
 Will run the specified command with the supplied arguments by passing them on 
-to [safe_open3](#safe_open3-command-arg1-argn).  Arguments can be embedded in the command string and 
+to [safe\_open3](#safe_open3-command-arg1-argn).  Arguments can be embedded in the command string and 
 are thus optional.
 
 If the last argument to this method is a hashref (`ref(@_[-1]) eq 'HASH'`), then
