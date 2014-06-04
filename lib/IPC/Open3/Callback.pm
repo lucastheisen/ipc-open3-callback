@@ -181,10 +181,10 @@ sub run_command {
                 next;
             }
             else {
-                if ( $fh == $out_fh ) {
+                if ( $out_fh && $fh == $out_fh ) {
                     $self->_write_to_callback( $out_callback, $line, $out_buffer_ref, 0 );
                 }
-                elsif ( $fh == $err_fh ) {
+                elsif ( $err_fh && $fh == $err_fh ) {
                     $self->_write_to_callback( $err_callback, $line, $err_buffer_ref, 0 );
                 }
                 else {
