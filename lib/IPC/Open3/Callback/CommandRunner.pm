@@ -35,8 +35,19 @@ sub _clear_buffers {
     delete( $self->{err_buffer} );
 }
 
+sub _condense {
+    my ($self, $buffer) = @_;
+
+    if ( $self->{$buffer} ) {
+        $self->{$buffer} = [join( '', @{$self->{$buffer}} )];
+        return $self->{$buffer}[0];
+    }
+    
+    return;
+}
+
 sub get_err_buffer {
-    return join( '', @{ shift->{err_buffer} } );
+    return $_[0]->_condense( 'err_buffer' );
 }
 
 sub _init {
@@ -59,7 +70,7 @@ sub _options {
 }
 
 sub get_out_buffer {
-    return join( '', @{ $_[0]->{out_buffer} } );
+    return $_[0]->_condense( 'out_buffer' );
 }
 
 sub run {
