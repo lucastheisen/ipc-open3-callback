@@ -11,20 +11,11 @@ use Hash::Util qw(lock_keys);
 use IPC::Open3::Callback;
 
 sub new {
-    my $prototype = shift;
-    my $class     = ref($prototype) || $prototype;
-    my $self      = { command_runner => IPC::Open3::Callback->new() };
-    bless( $self, $class );
-
-    lock_keys( %{$self}, keys( %{$self} ), 'out_buffer', 'err_buffer' );
-
-    return $self;
+    return bless( {}, shift )->_init( @_ );
 }
 
 sub _build_callback {
-    my $self       = shift;
-    my $out_or_err = shift;
-    my $options    = shift;
+    my ($self, $out_or_err, $options) = @_;
 
     if ( defined( $options->{ $out_or_err . '_callback' } ) ) {
         return $options->{ $out_or_err . '_callback' };
@@ -39,7 +30,7 @@ sub _build_callback {
 }
 
 sub _clear_buffers {
-    my $self = shift;
+    my ($self) = @_;
     delete( $self->{out_buffer} );
     delete( $self->{err_buffer} );
 }
@@ -48,9 +39,18 @@ sub get_err_buffer {
     return join( '', @{ shift->{err_buffer} } );
 }
 
+sub _init {
+    my ($self, @options) = @_;
+    
+    $self->{command_runner} = IPC::Open3::Callback->new( @options );
+
+    lock_keys( %{$self}, keys( %{$self} ), 'out_buffer', 'err_buffer' );
+
+    return $self;
+}
+
 sub _options {
-    my $self    = shift;
-    my %options = @_;
+    my ($self, %options) = @_;
 
     $options{out_callback} = $self->_build_callback( 'out', \%options );
     $options{err_callback} = $self->_build_callback( 'err', \%options );
@@ -59,12 +59,11 @@ sub _options {
 }
 
 sub get_out_buffer {
-    return join( '', @{ shift->{out_buffer} } );
+    return join( '', @{ $_[0]->{out_buffer} } );
 }
 
 sub run {
-    my $self    = shift;
-    my @command = @_;
+    my ($self, @command) = @_;
     my %options = ();
 
     # if last arg is hashref, its command options not arg...
@@ -78,8 +77,7 @@ sub run {
 }
 
 sub run_or_die {
-    my $self    = shift;
-    my @command = @_;
+    my ($self, @command) = @_;
     my %options = ();
 
     # if last arg is hashref, its command options not arg...
@@ -96,6 +94,8 @@ sub run_or_die {
         $message .= " err_buffer=($self->{err_buffer})" if ( $options{err_buffer} );
         die($message);
     }
+    
+    return $self->get_out_buffer();
 }
 
 1;
@@ -165,7 +165,8 @@ Returns the exit code from the command.
 =method run_or_die( $command, $arg1, ..., $argN, \%options )
 
 The same as L<run|/"run( $command, $arg1, ..., $argN, \%options )"> exept that it
-will C<die> on a non-zero exit code instead of returning the exit code.
+will C<die> on a non-zero exit code instead of returning the exit code.  If the
+C<out_buffer> option was specified, the output from the command will be returned.
 
 =head1 SEE ALSO
 IPC::Open3::Callback
