@@ -1,5 +1,3 @@
-#!/usr/local/bin/perl
-
 use strict;
 use warnings;
 
@@ -9,6 +7,7 @@ package IPC::Open3::Callback::CommandRunner;
 
 use Hash::Util qw(lock_keys);
 use IPC::Open3::Callback;
+use IPC::Open3::Callback::CommandFailedException;
 
 sub new {
     return bless( {}, shift )->_init( @_ );
@@ -100,10 +99,12 @@ sub run_or_die {
 
     my $exit_code = $self->{command_runner}->run_command( @command, \%options );
     if ($exit_code) {
-        my $message = "FAILED ($exit_code): @command";
-        $message .= " out_buffer=($self->{out_buffer})" if ( $options{out_buffer} );
-        $message .= " err_buffer=($self->{err_buffer})" if ( $options{err_buffer} );
-        die($message);
+        my $exception = IPC::Open3::Callback::CommandFailedException->new(
+            \@command,
+            $exit_code,
+            $self->get_out_buffer(),
+            $self->get_err_buffer() );
+        die( $exception );
     }
     
     return $self->get_out_buffer();
