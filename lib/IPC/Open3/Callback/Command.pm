@@ -83,18 +83,29 @@ sub cp_command {
         }
         else {
             # default, use tar
+            my @parts = ( "tar c -C $source_path ." );
+            my @destination_parts = ();
+            if ( $cp_options{status} ) {
+                push( @parts, join( '', 
+                    'pv -f -s `',
+                    _sudo_command( $source_command_options 
+                        && $source_command_options->get_sudo_username(),
+                        pipe_command( "du -sb $source_path", 'cut -f1' ) ),
+                    '`' ) );
+            }
             if ( $cp_options{compress} ) {
-                $source_command = command( "tar cz -C $source_path .",
-                    $source_command_options );
-                $destination_command = command( "tar xz -C $destination_path",
-                    $destination_command_options );
-            }
-            else {
-                $source_command = command( "tar c -C $source_path .",
-                    $source_command_options );
-                $destination_command = command( "tar x -C $destination_path",
-                    $destination_command_options );
-            }
+                push( @parts, 'gzip' );
+                push( @destination_parts, 'gunzip' );
+            } 
+            push( @destination_parts, 
+                _sudo_command( $destination_command_options 
+                    && $destination_command_options->get_sudo_username(),
+                    "tar x -C $destination_path" ) );
+
+            $source_command = command( pipe_command( @parts ), 
+                $source_command_options );
+            $destination_command = command( pipe_command( @destination_parts ), 
+                $destination_command_options->clone( sudo_username => undef ) );
         }
     }
     
@@ -181,6 +192,16 @@ sub sed_command {
     );
 }
 
+sub _sudo_command {
+    my ($sudo_username, $command) = @_;
+    if ( defined( $sudo_username ) ) {
+        $command = "sudo " .
+            ($sudo_username ? "-u $sudo_username " : '') . 
+            $command;
+    }
+    return $command;
+}
+
 sub write_command {
     my ($filename, @lines, $write_options, $command_options);
     $filename = shift;
@@ -239,11 +260,7 @@ sub wrap {
 
             $command =~ s/^(.*?[^\\]);$/$1/; # from find -exec
      
-            if ( defined( $sudo_username ) ) {
-                $command = "sudo " .
-                    ($sudo_username ? "-u $sudo_username " : '') . 
-                    $command;
-            }
+            $command = _sudo_command( $sudo_username, $command );
 
             $destination_command .= $command;
         }
@@ -271,12 +288,32 @@ package IPC::Open3::Callback::Command::CommandOptions;
 
 use parent qw(Class::Accessor);
 __PACKAGE__->follow_best_practice;
-__PACKAGE__->mk_accessors(
+__PACKAGE__->mk_ro_accessors(
     qw(hostname pretty ssh sudo_username username) );
 
 sub new {
     my ($class, @args) = @_;
     return bless( {}, $class )->_init( @args );
+}
+
+sub clone {
+    my ($instance, %options) = @_;
+    if ( exists( $instance->{hostname} ) && ! exists( $options{hostname} ) ) {
+        $options{hostname} = $instance->{hostname};
+    }
+    if ( exists( $instance->{ssh} ) && ! exists( $options{ssh} ) ) {
+        $options{ssh} = $instance->{ssh};
+    }
+    if ( exists( $instance->{username} ) && ! exists( $options{username} ) ) {
+        $options{username} = $instance->{username};
+    }
+    if ( exists( $instance->{sudo_username} ) && ! exists( $options{sudo_username} ) ) {
+        $options{sudo_username} = $instance->{sudo_username};
+    }
+    if ( exists( $instance->{pretty} ) && ! exists( $options{pretty} ) ) {
+        $options{pretty} = $instance->{pretty};
+    }
+    return new( ref($instance), %options );
 }
 
 sub _init {
@@ -435,6 +472,13 @@ compression.
 
 If supplied and true, then this is a file copy, otherwise it is a directory 
 copy.
+
+=item status
+
+If supplied, a status indicator will be printed to STDERR.  This option uses
+the unix C<pv> command which is typically not installed by default.  Also, this
+option only works with C<archive> set to tar (the default), and C<file> set to
+false (the default).
 
 =back
 
