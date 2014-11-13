@@ -74,8 +74,10 @@ sub cp_command {
         if ( $cp_options{archive} && $cp_options{archive} eq 'zip' ) {
             my $temp_zip = File::Spec->catfile( $destination_path, 
                 $cp_options{unzip_temp_file} || "temp_cp_command.zip" );
-            $source_command = batch_command( "cd $source_path", "zip -qr - .",
-                {subshell => "bash -c "}, $source_command_options );
+            $source_command = command(
+                batch_command( "cd $source_path", "zip -qr - .",
+                    {subshell => "bash -c "} ),
+                $source_command_options );
             $destination_command = batch_command( "dd of=$temp_zip",
                 "unzip -qod $destination_path $temp_zip",
                 rm_command( $temp_zip ),
