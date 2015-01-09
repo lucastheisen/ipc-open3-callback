@@ -42,7 +42,7 @@ sub _condense {
         return $self->{$buffer}[0];
     }
     
-    return undef;
+    return;
 }
 
 sub get_err_buffer {
@@ -102,8 +102,8 @@ sub run_or_die {
         my $exception = IPC::Open3::Callback::CommandFailedException->new(
             \@command,
             $exit_code,
-            $self->get_out_buffer(),
-            $self->get_err_buffer() );
+            scalar( $self->get_out_buffer() ),
+            scalar( $self->get_err_buffer() ) );
         die( $exception );
     }
     

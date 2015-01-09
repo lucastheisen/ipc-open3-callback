@@ -4,7 +4,7 @@ IPC::Open3::Callback - An extension to IPC::Open3 that will feed out and err to 
 
 # VERSION
 
-version 1.15
+version 1.16
 
 # SYNOPSIS
 
