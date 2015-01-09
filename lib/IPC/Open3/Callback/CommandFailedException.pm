@@ -21,8 +21,16 @@ sub _init {
     
     $self->{command} = $command;
     $self->{exit_status} = $exit_status;
-    $self->{out} = $out if ( defined( $out ) );
-    $self->{err} = $err if ( defined( $err ) );
+    if ( defined( $out ) ) {
+        $out =~ s/^\s+//;
+        $out =~ s/\s+$//;
+        $self->{out} = $out;
+    }
+    if ( defined( $err ) ) {
+        $err =~ s/^\s+//;
+        $err =~ s/\s+$//;
+        $self->{err} = $err;
+    }
 
     return $self;
 }
@@ -33,10 +41,10 @@ sub to_string {
         my @message = ( 'FAILED (', $self->{exit_status}, '): ', 
             @{$self->{command}} );
         if ( $self->{out} ) {
-            push( @message, "\nout: <", $self->{out}, ">" );
+            push( @message, "\n***** out *****\n", $self->{out}, "\n***** end out *****" );
         }
         if ( $self->{err} ) {
-            push( @message, "\nerr: <", $self->{err}, ">" );
+            push( @message, "\n***** err *****\n", $self->{err}, "\n***** end err *****" );
         }
         $self->{message} = join( '', @message );
     }

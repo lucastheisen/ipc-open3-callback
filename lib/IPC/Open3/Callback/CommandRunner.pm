@@ -42,7 +42,7 @@ sub _condense {
         return $self->{$buffer}[0];
     }
     
-    return;
+    return undef;
 }
 
 sub get_err_buffer {
