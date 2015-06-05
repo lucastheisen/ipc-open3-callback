@@ -43,9 +43,9 @@ sub command {
 
 sub cp_command {
     my ($source_path, $source_command_options, $destination_path, $destination_command_options, %cp_options);
-    $source_path = shift;
+    $source_path = _escape_path( shift );
     $source_command_options = shift if ( ref($_[0]) eq 'IPC::Open3::Callback::Command::CommandOptions' );
-    $destination_path = shift;
+    $destination_path = _escape_path( shift );
     $destination_command_options = shift if ( ref($_[0]) eq 'IPC::Open3::Callback::Command::CommandOptions' );
     %cp_options = @_;
 
@@ -140,6 +140,12 @@ sub _quote_command {
     $command =~ s/`/\\`/g; # for `command`
     $command =~ s/"/\\"/g;
     return "\"$command\"";
+}
+
+sub _escape_path {
+    my ($path) = @_;
+    $path =~ s/(['"`\s])/\\$1/g;
+    return $path;
 }
 
 sub rm_command {
