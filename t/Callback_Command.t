@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 33;
+use Test::More tests => 34;
 
 BEGIN { use_ok('IPC::Open3::Callback::Command') }
 
@@ -110,6 +110,9 @@ is( batch_command( "echo abc;", "echo def;", {subshell => 'bash -c '} ),
 is( cp_command( "abc", "def", file => 1 ),
     'cat abc|dd of=def',
     'cp_command file simple' );
+is( cp_command( "chick'n biscuit", "\"real\" food", file => 1 ),
+    'cat chick\\\'n\ biscuit|dd of=\"real\"\ food',
+    'cp_command file simple with escaped file names.' );
 is( cp_command( "abc", command_options(hostname=>'foo'), "def", file => 1 ),
     'ssh foo "cat abc"|dd of=def',
     'cp_command file source command options' );
