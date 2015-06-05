@@ -1,5 +1,10 @@
 Revision history for Perl module IPC::Open3::Callback
 
+1.17 2015-01-09
+    - Fixed issue 12: Adding escaping of pathnames with white-space
+      and single/double quotes...: 
+      https://github.com/lucastheisen/ipc-open3-callback/pull/12
+
 1.16 2015-01-09
     - Fixed bug in CommmandFailedException and CommandRunner that was
       causing the to_string to print err message with out header when
