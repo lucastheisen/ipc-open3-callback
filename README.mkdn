@@ -228,8 +228,8 @@ Returns the exit code from the command.
 
 # AUTHORS
 
-- Lucas Theisen <lucastheisen@pastdev.com>
-- Alceu Rodrigues de Freitas Junior <arfreitas@cpan.org>
+- Lucas Theisen &lt;lucastheisen@pastdev.com>
+- Alceu Rodrigues de Freitas Junior &lt;arfreitas@cpan.org>
 
 # COPYRIGHT AND LICENSE
 
