@@ -11,7 +11,7 @@ if ( $@ ) {
     IPC::Open3::Callback::Logger->set_level( 'off' );
 }
 
-use Test::More tests => 20;
+use Test::More tests => 22;
 
 BEGIN { use_ok('IPC::Open3::Callback') }
 
@@ -166,4 +166,26 @@ $runner->run_command( $command,
 );
 is( $buffer, $expected, 'piped in handle' );
 close( $three_line_file );
+
+$runner = IPC::Open3::Callback->new();
+my $killed;
+$buffer = '';
+$exit_code = $runner->run_command("cat $three_line_file_path",
+    {   
+        buffer_output => 1,
+        out_callback => sub {
+            my ($data, $pid) = @_;
+            if ($data =~ /line/) {
+                if ($pid =~ /^\d+$/) {
+                    $killed = 1;
+                    kill(9, $pid);
+                }
+            }
+            return if ($killed);
+            $buffer .= $data;
+        }
+    }
+);
+ok($killed, 'got pid to kill' );
+is( $buffer, 'three', 'short circuit' );
 
