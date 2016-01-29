@@ -4,7 +4,7 @@ IPC::Open3::Callback - An extension to IPC::Open3 that will feed out and err to 
 
 # VERSION
 
-version 1.17
+version 1.18
 
 # SYNOPSIS
 
@@ -228,8 +228,8 @@ Returns the exit code from the command.
 
 # AUTHORS
 
-- Lucas Theisen &lt;lucastheisen@pastdev.com>
-- Alceu Rodrigues de Freitas Junior &lt;arfreitas@cpan.org>
+- Lucas Theisen <lucastheisen@pastdev.com>
+- Alceu Rodrigues de Freitas Junior <arfreitas@cpan.org>
 
 # COPYRIGHT AND LICENSE
 
