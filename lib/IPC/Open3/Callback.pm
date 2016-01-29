@@ -287,12 +287,15 @@ sub _write_to_callback {
 
     return if ( !defined($callback) );
 
+    my $pid = $self->get_pid();
     if ( !defined($buffer_ref) ) {
-        &{$callback}( $data, $self->get_pid() );
+        &{$callback}( $data, $pid );
         return;
     }
 
-    &{$callback}($_) foreach ( $self->_append_to_buffer( $buffer_ref, $data, $flush ) );
+    foreach my $line ( $self->_append_to_buffer( $buffer_ref, $data, $flush ) ) {
+        &{$callback}( $line, $pid );
+    }
 }
 
 1;
