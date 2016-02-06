@@ -1,5 +1,8 @@
 Revision history for Perl module IPC::Open3::Callback
 
+1.19 2016-02-06
+    - Cleaned up prereqs
+
 1.18 2016-01-28
     - fixed bug when buffer_out => 1 and a out_callback where pid was not 
       passed to callback
